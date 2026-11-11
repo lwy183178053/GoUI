@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="GoUI XML 使用教程：UI 目录、字体配置、组件复用、Block 布局与按钮交互。">
+  <title>GoUI XML 标签使用教程</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="mobile-bar">
+    <strong>GoUI XML 教程</strong>
+    <button class="menu-btn" id="menuButton" type="button" aria-controls="sidebar" aria-expanded="false">目录</button>
+  </div>
+
+  <aside class="sidebar" id="sidebar" aria-label="文档目录">
+    <a class="brand" href="#start">
+      <span class="brand-mark">G</span>
+      <span><strong>GoUI XML</strong><small>Usage Guide 0.1</small></span>
+    </a>
+    <p class="side-label">教程目录</p>
+    <nav class="side-nav">
+      <details class="nav-group" open>
+        <summary>快速开始</summary>
+        <div class="nav-group-links">
+          <a href="#intro">最小示例</a>
+          <a href="#project-files">UI 目录与文件加载</a>
+          <a href="#font-config">config / fonts / font</a>
+        </div>
+      </details>
+      <details class="nav-group">
+        <summary>通用属性</summary>
+        <div class="nav-group-links">
+          <a href="#attr-id">id</a>
+          <a href="#attr-visible">visible</a>
+          <a href="#attr-color">color</a>
+          <a href="#attr-radius">radius</a>
+          <a href="#anchor">anchor</a>
+          <a href="#pivot">pivot</a>
+          <a href="#position">position</a>
+          <a href="#size">size</a>
+          <a href="#margin">margin 边距</a>
+        </div>
+      </details>
+      <details class="nav-group">
+        <summary>标签</summary>
+        <div class="nav-group-links">
+          <a href="#ui">ui 根标签</a>
+          <a href="#block">block 标签</a>
+          <a href="#text">text 标签</a>
+          <a href="#image">image 标签</a>
+          <a href="#button">button 标签</a>
+          <a href="#component">component 标签</a>
+        </div>
+      </details>
+      <details class="nav-group">
+        <summary>其它</summary>
+        <div class="nav-group-links">
+          <a href="#tree">子节点与层级</a>
+          <a href="#pixels">小数坐标与像素取整</a>
+          <a href="#dirty">Block 与脏区重绘</a>
+          <a href="#font-files">字体文件怎么选</a>
+          <a href="#complete">完整页面示例</a>
+          <a href="#reference">标签速查</a>
+        </div>
+      </details>
+    </nav>
+    <div class="side-note"><strong>章节顺序</strong>先看通用写法，再按标签查用法，最后看组合示例和绘制说明。</div>
+  </aside>
+
+  <main class="main">
+    <header class="hero" id="start">
+      <div class="hero-inner">
+        <div class="eyebrow">GoUI / XML UI Guide</div>
+        <h1><span class="hero-title-line">GoUI XML</span> <span class="hero-title-line">标签使用教程</span></h1>
+        <p class="hero-lede">用 Block 描述界面，用 <code>anchor</code>、<code>pivot</code>、<code>position</code> 和 <code>size</code> 布局；当 <code>size</code> 使用 <code>-1</code> 时，再用 <code>margin</code> 控制边距。Text、Image、Button 共享 Block 的基础属性，只增加各自必需的能力。</p>
+        <div class="hero-meta"><span class="tag primary">标签规范 0.1</span><span class="tag">纯 Go</span><span class="tag">DRM/KMS</span><span class="tag">Block 布局</span></div>
+      </div>
+    </header>
+
+    <div class="content">
+      <section class="doc-section" id="intro">
+        <div class="section-kicker">01 / GoUI XML</div>
+        <h2>开始使用</h2>
+        <p class="lead">先准备一个 UI 目录，在 <code>config.xml</code> 中登记字体，在 <code>main.xml</code> 中描述界面。预览版支持 <code>block</code>、<code>text</code>、<code>image</code>、<code>button</code> 和透明展开的 <code>component</code>；布局、XML 解析和软件绘制都由平台无关的 Go 代码完成。</p>
+        <div class="two-col">
+          <div class="mini-panel">
+            <h3>定位一个节点</h3>
+            <p><code>anchor</code> 选父级上的点，<code>pivot</code> 选自身上的点；两点对齐后，再由 <code>position</code> 偏移，并用 <code>size</code> 定尺寸。</p>
+          </div>
+          <div class="mini-panel">
+            <h3>组合与复用</h3>
+            <p>文字和图标都写成独立节点，放进普通 Block 或 Button。需要复用一组节点时，把内容放到组件 XML，再用 <code>component</code> 引用。</p>
+          </div>
+        </div>
+        <h3>最小 config.xml</h3>
+        <pre><code class="language-xml" data-example="quick-config">&lt;config&gt;
+  &lt;fonts&gt;
+    &lt;font name="default" src="fonts/AlibabaPuHuiTi-3-55-Regular.ttf" /&gt;
+  &lt;/fonts&gt;
+&lt;/config&gt;</code></pre>
+        <p>将对应的 TTF 文件放入 UI 目录的 <code>fonts/</code> 中。这里的 <code>default</code> 是注册名称，后面的 Text 省略 <code>font</code> 时就使用它。</p>
+        <h3>最小 main.xml</h3>
+        <pre><code class="language-xml" data-example="quick-main">&lt;ui color="#0D1117"&gt;
+  &lt;text
+    id="title"
+    anchor="0.5,0"
+    pivot="0.5,0"
+    position="0,24"
+    size="320,40"
+    text-color="#F4F7F7"
+    font-size="24"&gt;GoUI&lt;/text&gt;
+&lt;/ui&gt;</code></pre>
+        <p class="small">坐标使用渲染目标的像素，父节点左上角为原点，X 向右、Y 向下。根 <code>ui</code> 的矩形就是当前 DRM/KMS 输出区域。</p>
+      </section>
+
+      <section class="doc-section" id="project-files">
+        <div class="section-kicker">02 / GoUI XML</div>
+        <h2>UI 目录与文件加载</h2>
+        <p class="lead">启动时指定 UI 目录，加载器自动读取其中的 <code>config.xml</code> 和 <code>main.xml</code>。其它 XML 按组件引用加载，资源可以按用途分目录存放。</p>
+        <pre><code class="language-text">ui/
+  main.xml
+  config.xml
+  components/
+    display-card.xml
+    parts/
+      connection.xml
+  fonts/
+    AlibabaPuHuiTi-3-55-Regular.ttf
+    AlibabaPuHuiTi-3-75-SemiBold.ttf
+  assets/
+    board.png</code></pre>
+        <ul class="rule-list">
+          <li><code>config.xml</code> 和 <code>main.xml</code> 都是必需文件；前者以 <code>&lt;config&gt;</code> 为根，后者以 <code>&lt;ui&gt;</code> 为根。</li>
+          <li>先读取配置并注册字体，再读取主界面、展开组件并检查最终节点树。没有被引用的组件文件不加载。</li>
+          <li>路径使用正斜杠，可使用 <code>../</code> 访问上级目录，但解析后的路径必须留在指定的 UI 目录内。</li>
+        </ul>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>路径属性</th><th>相对基准</th><th>示例</th></tr></thead>
+            <tbody>
+              <tr><td>component.src</td><td>写下该引用的 XML 文件所在目录</td><td><code>components/display-card.xml</code> 中的 <code>parts/connection.xml</code> 指向 <code>components/parts/connection.xml</code>。</td></tr>
+              <tr><td>image.src</td><td>UI 目录</td><td>任何组件中的 <code>assets/board.png</code> 都指向 <code>ui/assets/board.png</code>。</td></tr>
+              <tr><td>config 中 font.src</td><td>UI 目录</td><td><code>fonts/AlibabaPuHuiTi-3-55-Regular.ttf</code> 指向 <code>ui/fonts/AlibabaPuHuiTi-3-55-Regular.ttf</code>。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout"><strong>出错时停止加载。</strong>缺少必需文件、XML 格式错误、未知标签或属性、重复名称或 ID、无效字体引用都属于加载错误。错误应指出来源文件和位置；组件错误还应显示引用关系。</div>
+      </section>
+
+      <section class="doc-section" id="font-config">
+        <div class="section-kicker">03 / GoUI XML</div>
+        <h2><code>config</code>、<code>fonts</code> 与 <code>font</code></h2>
+        <p class="lead">字体统一在 <code>config.xml</code> 中登记。<code>fonts</code> 保存字体列表，每个 <code>font</code> 把一个名称映射到 UI 目录中的 TTF 文件；Text 按名称选择字体。</p>
+        <pre><code class="language-xml" data-example="font-config">&lt;config&gt;
+  &lt;fonts&gt;
+    &lt;font name="default"
+      src="fonts/AlibabaPuHuiTi-3-55-Regular.ttf" /&gt;
+    &lt;font name="semibold"
+      src="fonts/AlibabaPuHuiTi-3-75-SemiBold.ttf" /&gt;
+  &lt;/fonts&gt;
+&lt;/config&gt;</code></pre>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>标签 / 属性</th><th>写法</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>config</td><td>配置文件根标签</td><td>整个 UI 目录使用这份配置。</td></tr>
+              <tr><td>fonts</td><td>包含多个 font</td><td>字体注册表，至少登记一个名为 <code>default</code> 的字体。</td></tr>
+              <tr><td>font.name</td><td>非空字符串，必需</td><td>供 <code>text font="名称"</code> 引用；同一注册表中的名称不能重复。</td></tr>
+              <tr><td>font.src</td><td>TTF 文件路径，必需</td><td>相对于 UI 目录，字体随应用资源提供。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>上例中，正文省略 <code>font</code> 即使用 Regular；需要较粗的标题时，显式选择 <code>semibold</code>。需要几种字重，就登记对应的几个文件。</p>
+        <pre><code class="language-xml" data-example="font-choice">&lt;text size="320,40" font="semibold" font-size="24"&gt;显示设备&lt;/text&gt;</code></pre>
+        <p>缺少 <code>default</code>、字体重名、文件不存在或无法解析，以及 Text 引用未注册字体时，加载失败。字体直接从 UI 目录读取，目标 Linux 的系统字体不参与查找。</p>
+      </section>
+
+      <section class="doc-section" id="common">
+        <div class="section-kicker">04 / GoUI XML</div>
+        <h2>通用属性</h2>
+        <p class="lead">这些属性由 Block 提供，<code>block</code>、<code>text</code>、<code>image</code> 和 <code>button</code> 都可以使用。每个节点有自己的属性值；<code>visible</code> 控制整棵子树的显示，坐标和尺寸则为子节点提供布局参考。</p>
+        <div class="attribute-item" id="attr-id">
+          <h3><code>id</code></h3>
+          <p><span class="attribute-meta">类型：非空字符串 · 默认：无</span>可选节点名称，用于代码查找、状态更新和调试。组件中的 <code>id</code> 在展开后加上组件名前缀，例如 <code>left.title</code>；最终节点树中的 ID 必须全局唯一，重复时报错。根 <code>ui</code> 也可以设置 ID。</p>
+        </div>
+        <div class="attribute-item" id="attr-visible">
+          <h3><code>visible</code></h3>
+          <p><span class="attribute-meta">类型：true / false · 默认：true</span>设为 <code>false</code> 后，当前节点及整个子树都不绘制，其中的按钮也不参与命中测试。</p>
+        </div>
+        <div class="attribute-item" id="attr-color">
+          <h3><code>color</code></h3>
+          <p><span class="attribute-meta">类型：颜色 · 默认：透明</span>设置当前节点自己的矩形填充色，支持 <code>#RRGGBB</code> 和 <code>#RRGGBBAA</code>。所有可视标签都可以使用这个属性，值只作用于当前节点；子节点使用自己的颜色值。Text 的文字颜色由 <code>text-color</code> 设置。根 <code>ui</code> 的 <code>color</code> 是清屏背景色，默认黑色。</p>
+        </div>
+        <div class="attribute-item" id="attr-radius">
+          <h3><code>radius</code></h3>
+          <p><span class="attribute-meta">类型：非负像素数 · 默认：0</span>设置当前节点填充区域和图片区域的圆角。超过短边一半时按短边一半绘制。圆角只作用于当前节点，子节点可绘制到父矩形外；按钮仍按完整矩形命中。</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="anchor">
+        <div class="section-kicker">05 / GoUI XML</div>
+        <h2><code>anchor</code></h2>
+        <p class="lead"><code>anchor="x,y"</code> 选择父节点矩形中的一个点。两个值都在 0～1 之间，默认 <code>0,0</code>；它决定自身的 <code>pivot</code> 要对齐父节点的什么位置。</p>
+        <div class="inline-code-list">
+          <div class="inline-code-item"><code>anchor="0,0"</code><span>父节点左上角。</span></div>
+          <div class="inline-code-item"><code>anchor="0.5,0.5"</code><span>父节点中心。</span></div>
+          <div class="inline-code-item"><code>anchor="1,0"</code><span>父节点右上角。</span></div>
+          <div class="inline-code-item"><code>anchor="1,1"</code><span>父节点右下角。</span></div>
+        </div>
+        <p>父节点尺寸变化时，这个参考点随之移动。当前轴的 <code>size</code> 为 <code>-1</code> 时，改由该轴边距决定填充位置。</p>
+      </section>
+
+      <section class="doc-section" id="pivot">
+        <div class="section-kicker">06 / GoUI XML</div>
+        <h2><code>pivot</code></h2>
+        <p class="lead"><code>pivot="x,y"</code> 选择当前节点自身矩形中的一个点，两个值都在 0～1 之间，默认 <code>0,0</code>。它与父节点上的 <code>anchor</code> 对齐后，再加上 <code>position</code> 偏移。</p>
+        <p><code>pivot="0,0"</code> 使用自身左上角，<code>pivot="0.5,0.5"</code> 使用自身中心，<code>pivot="1,1"</code> 使用自身右下角。锚点和轴心只决定对齐方式，尺寸由 <code>size</code> 决定。</p>
+        <h3>把自身中心对齐到父节点中心</h3>
+        <pre><code class="language-xml" data-example="centered-block">&lt;block size="800,400"&gt;
+  &lt;block anchor="0.5,0.5" pivot="0.5,0.5"
+    position="0,0" size="240,80" color="#17212B" /&gt;
+&lt;/block&gt;</code></pre>
+        <div class="formula">parentAnchor = parentRect.origin + parentRect.size × anchor
+selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
+        <p>这里的乘法按 X、Y 分别计算。计算结果可以带小数，最终如何对应实际像素见“<a href="#pixels">小数坐标与像素取整</a>”。</p>
+      </section>
+
+      <section class="doc-section" id="position">
+        <div class="section-kicker">07 / GoUI XML</div>
+        <h2><code>position</code></h2>
+        <p class="lead"><code>position="x,y"</code> 是父级 anchor 与自身 pivot 对齐后的整数像素偏移，默认 <code>0,0</code>。正值向右、向下移动，负值向左、向上移动。</p>
+        <h3>给状态卡片留出偏移</h3>
+        <pre><code class="language-xml">&lt;block
+  id="status-card"
+  anchor="0,0"
+  pivot="0,0"
+  position="24,96"
+  size="420,180"
+  color="#17212B"
+  radius="12" /&gt;</code></pre>
+        <p>这里的 <code>position="24,96"</code> 表示卡片左上角距离父组件左上角 24、96 像素。若把 <code>pivot</code> 改成 <code>0.5,0.5</code>，同一个偏移就会作用在卡片中心。</p>
+      </section>
+
+      <section class="doc-section" id="size">
+        <div class="section-kicker">08 / GoUI XML</div>
+        <h2><code>size</code></h2>
+        <p class="lead"><code>size="width,height"</code> 必须填写两个整数像素值。非负整数表示固定尺寸，<code>-1</code> 表示该方向填充父节点；宽、高分别独立判断，小于 <code>-1</code> 的值无效。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>写法</th><th>结果</th><th>适用场景</th></tr></thead>
+            <tbody>
+              <tr><td>size="240,80"</td><td>宽 240，高 80</td><td>固定按钮、标题、图标区域。</td></tr>
+              <tr><td>size="-1,48"</td><td>宽填充，高 48</td><td>横向顶栏、状态条。</td></tr>
+              <tr><td>size="320,-1"</td><td>宽 320，高填充</td><td>侧栏、纵向面板。</td></tr>
+              <tr><td>size="-1,-1"</td><td>宽高都填充</td><td>内容根 Block 或全尺寸背景。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>只填充一个方向</h3>
+        <pre><code class="language-xml">&lt;block
+  anchor="0,0"
+  pivot="0,0"
+  position="0,18"
+  size="-1,48"
+  margin="24,80,24,80"
+  color="#23303A" /&gt;</code></pre>
+        <p class="small">这里宽度为 <code>-1</code>，所以只使用左、右边距 <code>24</code>；上、下边距 <code>80</code> 被忽略。高度固定为 <code>48</code>，其 Y 位置仍由 <code>anchor</code>、<code>pivot</code> 和 <code>position</code> 决定。</p>
+      </section>
+
+      <section class="doc-section" id="margin">
+        <div class="section-kicker">09 / GoUI XML</div>
+        <h2><code>margin</code> 边距</h2>
+        <p class="lead"><code>margin</code> 按 <code>left,top,right,bottom</code> 的顺序填写四个非负整数像素值，默认是 <code>0,0,0,0</code>。它只作用于 <code>size</code> 中值为 <code>-1</code> 的方向。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>size</th><th>生效的 margin 值</th><th>忽略的 margin 值</th></tr></thead>
+            <tbody>
+              <tr><td>"-1,48"</td><td>left、right</td><td>top、bottom</td></tr>
+              <tr><td>"320,-1"</td><td>top、bottom</td><td>left、right</td></tr>
+              <tr><td>"-1,-1"</td><td>left、top、right、bottom</td><td>无</td></tr>
+              <tr><td>"320,48"</td><td>无</td><td>left、top、right、bottom</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="small">填充方向由 <code>margin</code> 决定，该方向的 <code>anchor</code>、<code>pivot</code>、<code>position</code> 不生效；固定尺寸方向仍按这三个属性定位。左右或上下边距总和超过父尺寸时，该方向尺寸按 0 处理。</p>
+      </section>
+
+      <section class="doc-section" id="ui">
+        <div class="section-kicker">10 / GoUI XML</div>
+        <h2><code>ui</code> 根标签</h2>
+        <p class="lead"><code>ui</code> 是 <code>main.xml</code> 的唯一根节点。它的矩形自动覆盖当前渲染目标，直接子节点以这块区域作为父级坐标空间。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>属性</th><th>类型 / 默认值</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>color</td><td>颜色，默认 #000000</td><td>渲染背景和清屏颜色，支持 <code>#RRGGBB</code>、<code>#RRGGBBAA</code>。</td></tr>
+              <tr><td>id</td><td>非空字符串，可选</td><td>给根节点命名，最终 ID 全局唯一。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <pre><code class="language-xml" data-example="ui-root">&lt;ui id="drm-monitor" color="#0D1117"&gt;
+  &lt;block size="-1,-1" margin="24,24,24,24" /&gt;
+&lt;/ui&gt;</code></pre>
+        <p><code>ui</code> 的尺寸来自渲染目标，子节点用锚点或填充规则适配尺寸变化。字体等运行配置统一放在 <code>config.xml</code> 中。</p>
+      </section>
+
+      <section class="doc-section" id="block">
+        <div class="section-kicker">11 / GoUI XML</div>
+        <h2><code>block</code> 标签</h2>
+        <p class="lead"><code>block</code> 是最基础的可视节点，也是所有控件的共同基础。它可以有填充色、子节点和自己的布局矩形，但不会自动排列子节点。控件复用 Block 已有的布局、颜色和圆角属性，只增加自身需要的功能。</p>
+        <h3>最小写法</h3>
+        <pre><code class="language-xml">&lt;block
+  id="panel"
+  anchor="0.5,0.5"
+  pivot="0.5,0.5"
+  position="0,0"
+  size="480,260"
+  color="#17212B"
+  radius="12" /&gt;</code></pre>
+        <div class="label-row"><code>id</code><code>visible</code><code>anchor</code><code>pivot</code><code>position</code><code>size</code><code>margin</code><code>color</code><code>radius</code></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>布局属性</th><th>默认 / 要求</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>anchor</td><td>0,0</td><td>省略时使用父组件左上角。</td></tr>
+              <tr><td>pivot</td><td>0,0</td><td>省略时使用当前 Block 左上角。</td></tr>
+              <tr><td>position</td><td>0,0</td><td>省略时两个参考点重合。</td></tr>
+              <tr><td>size</td><td>必需</td><td>每个可视子节点都必须给出宽高；只有 <code>ui</code> 根节点自动占满渲染目标。</td></tr>
+              <tr><td>margin</td><td>0,0,0,0</td><td>顺序为左、上、右、下；宽为 -1 时只读左右，高为 -1 时只读上下。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Block 的子节点坐标相对于该 Block 的左上角。父 Block 只负责提供坐标空间和绘制顺序，不会因为子节点数量改变自己的大小。</p>
+        <div class="callout warn"><strong>不要把 block 当成自动布局容器。</strong>如果两个子节点要上下排列，就直接给它们不同的 <code>position</code>；如果要横向排列，也直接写各自的 X 偏移。</div>
+      </section>
+
+      <section class="doc-section" id="text">
+        <div class="section-kicker">12 / GoUI XML</div>
+        <h2><code>text</code> 标签</h2>
+        <p class="lead"><code>text</code> 用节点内容显示文字，共享 Block 的布局、填充色和圆角属性，并提供字体、文字颜色、对齐和自动换行。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>属性</th><th>类型 / 默认值</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>font</td><td>已注册字体名，默认 default</td><td>引用 <code>config.xml</code> 中的 <code>font.name</code>，例如 <code>semibold</code>。</td></tr>
+              <tr><td>font-size</td><td>像素，默认 16</td><td>文字大小。</td></tr>
+              <tr><td>text-color</td><td>颜色，默认 #F4F7F7</td><td>文字本身的颜色，支持 <code>#RRGGBB</code> 和 <code>#RRGGBBAA</code>；<code>color</code> 则绘制文字下方的矩形填充。</td></tr>
+              <tr><td>align</td><td>left / center / right，默认 left</td><td>文字的水平对齐方式，多行时对每一行生效。</td></tr>
+              <tr><td>valign</td><td>top / middle / bottom，默认 middle</td><td>整段文字在节点内的垂直对齐方式。</td></tr>
+              <tr><td>wrap</td><td>true / false，默认 false</td><td><code>false</code> 为单行；<code>true</code> 按节点可用宽度自动换行。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>单行状态文字</h3>
+        <pre><code class="language-xml" data-example="text-single-line">&lt;text id="fps" position="16,12" size="220,32"
+  font="default" font-size="18" text-color="#B6D8D3"
+  align="left" valign="middle"&gt;FPS 60&lt;/text&gt;</code></pre>
+        <h3>自动换行的说明文字</h3>
+        <pre><code class="language-xml" data-example="text-wrapping">&lt;text position="16,56" size="320,96"
+  wrap="true" valign="top" font-size="16"&gt;显示连接状态、当前分辨率和 DRM page flip 的测试结果。文字会根据当前宽度自动换行。&lt;/text&gt;</code></pre>
+        <p>开启 <code>wrap</code> 后，中文可以逐字折行，英文优先按空格保留单词；单个单词超过整行宽度时再拆分。行高由字体度量决定，超出当前 Text 矩形的文字裁掉，节点高度仍由 <code>size</code> 决定。</p>
+        <p>单行模式同样在自身矩形内显示。文本中的 <code>&amp;lt;</code>、<code>&amp;amp;</code> 等 XML 实体在显示前还原。Text 只能放文字内容。</p>
+      </section>
+
+      <section class="doc-section" id="image">
+        <div class="section-kicker">13 / GoUI XML</div>
+        <h2><code>image</code> 标签</h2>
+        <p class="lead"><code>image</code> 把图片资源绘制到自己的 Block 矩形中，使用通用布局属性。它自己的 <code>color</code> 填充色绘制在图片下方，<code>radius</code> 同时作用于填充区域和图片区域。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>属性</th><th>类型 / 默认值</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>src</td><td>路径，必需</td><td>资源路径，相对于启动时指定的 UI 目录，例如 <code>assets/board.png</code>。预览版可读取 PNG、JPEG 和 GIF 静态帧。</td></tr>
+              <tr><td>fit</td><td>stretch / contain / cover，默认 stretch</td><td><code>stretch</code> 拉伸填满，<code>contain</code> 保持比例完整显示，<code>cover</code> 保持比例铺满并裁剪。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <pre><code class="language-xml">&lt;image
+  id="board-icon"
+  anchor="0,0"
+  pivot="0,0"
+  position="16,16"
+  size="48,48"
+  src="assets/board.png"
+  fit="contain" /&gt;</code></pre>
+        <p class="small">节点矩形由 <code>size</code> 决定。<code>contain</code> 将图片等比居中，留白处显示当前节点的填充色；<code>cover</code> 将图片等比居中并裁掉超出自身矩形的部分。<code>radius</code> 同时裁切图片和填充色。Image 不包含子节点。</p>
+      </section>
+
+      <section class="doc-section" id="button">
+        <div class="section-kicker">14 / GoUI XML</div>
+        <h2><code>button</code> 标签</h2>
+        <p class="lead"><code>button</code> 是接收点击的 Block，只增加点击命令和禁用状态。布局、颜色和圆角使用通用属性，文字与图片写成它的子节点。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>属性</th><th>类型 / 默认值</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>on-click</td><td>命令名，可选</td><td>点击成功后执行已注册的命令，例如 <code>drm.start</code>。</td></tr>
+              <tr><td>disabled</td><td>true / false，默认 false</td><td>为 <code>true</code> 时不执行点击命令，但仍挡住下方的按钮；外观由自身属性与子节点决定。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <pre><code class="language-xml" data-example="start-button">&lt;button id="start-button" position="24,300" size="180,48"
+  color="#B4473B" radius="6" on-click="drm.start"&gt;
+  &lt;text size="-1,-1" text-color="#FFFFFF" font-size="16"
+    align="center" valign="middle"&gt;Start DRM&lt;/text&gt;
+&lt;/button&gt;</code></pre>
+        <p>只有 <code>button</code> 可以声明 <code>on-click</code>；写在 <code>block</code>、<code>text</code>、<code>image</code> 等其它标签上属于加载错误。命令名由 Go 代码注册，XML 中填写名称。预览窗口把鼠标左键按下和释放转换成按钮命中事件。</p>
+        <pre><code class="language-go">err := renderer.RegisterAction("drm.start", func() error {
+  // 在这里调用应用自己的 Go 逻辑，也可以更新有 ID 的 UI 节点。
+  return renderer.SetText("status", "命令已执行")
+})</code></pre>
+        <h3>点击与重叠规则</h3>
+        <ol class="rule-list">
+          <li>从绘制顺序的最上层向下，只检查可见的 Button。点击位置内的第一个按钮就是此次目标；Block、Text、Image 即使完全盖住它，也不会挡住命中。</li>
+          <li>Button 的完整矩形参与命中，包括圆角外的矩形边角。普通文字或图标覆盖按钮时，仍可点击按钮。</li>
+          <li>按下时记录目标；释放时重新查找当前位置最上层的按钮。两次是同一个按钮且按钮可用时，才执行一次 <code>on-click</code>。移出后释放、隐藏或禁用按钮都会取消本次点击。</li>
+          <li>最上层按钮禁用时，本次点击被挡住，下层按钮也不执行。设为 <code>visible="false"</code> 的节点及子树不参与命中。</li>
+        </ol>
+      </section>
+
+      <section class="doc-section" id="component">
+        <div class="section-kicker">15 / GoUI XML</div>
+        <h2><code>component</code> 标签</h2>
+        <p class="lead">一个组件使用一个 XML 文件，文件最外层用 <code>&lt;component&gt;</code> 包住内容。在界面中用同名标签填写 <code>src</code> 和 <code>name</code> 引用它。加载时将引用替换为文件内的内容，并为其中的 ID 加上组件名前缀。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>引用属性</th><th>要求</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>src</td><td>XML 路径，必需</td><td>相对于当前 XML 文件所在目录解析。</td></tr>
+              <tr><td>name</td><td>非空实例名，必需</td><td>作为 ID 前缀；名称不能含点号，展开后的完整组件名必须全局唯一。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>同一个文件引用两次：main.xml</h3>
+        <pre><code class="language-xml" data-example="component-main">&lt;ui color="#0D1117"&gt;
+  &lt;block position="24,80" size="440,196"&gt;
+    &lt;component src="components/display-card.xml" name="left" /&gt;
+  &lt;/block&gt;
+  &lt;block position="488,80" size="440,196"&gt;
+    &lt;component src="components/display-card.xml" name="right" /&gt;
+  &lt;/block&gt;
+&lt;/ui&gt;</code></pre>
+        <h3>组件文件：components/display-card.xml</h3>
+        <pre><code class="language-xml" data-example="component-card">&lt;component&gt;
+  &lt;block id="panel" size="-1,-1" color="#17212B" radius="12"&gt;
+    &lt;text id="title" position="20,18" size="400,32"
+      font-size="20"&gt;Display&lt;/text&gt;
+    &lt;component src="parts/connection.xml" name="connection" /&gt;
+  &lt;/block&gt;
+&lt;/component&gt;</code></pre>
+        <h3>嵌套组件：components/parts/connection.xml</h3>
+        <pre><code class="language-xml" data-example="component-connection">&lt;component&gt;
+  &lt;text id="state" position="20,62" size="400,28"
+    text-color="#B6D8D3"&gt;Connected&lt;/text&gt;
+  &lt;text id="detail" position="20,100" size="400,28"
+    text-color="#A8B3B5"&gt;HDMI-A-1 / 1920 × 1080&lt;/text&gt;
+&lt;/component&gt;</code></pre>
+        <p>组件文件的根 <code>&lt;component&gt;</code> 是透明包装，可以放多个子标签；上面的嵌套组件就直接提供两个 Text。引用处的 <code>&lt;component src="…" name="…" /&gt;</code> 和文件外层包装都会移除，子节点直接插入引用位置，保留原来的顺序。</p>
+        <p>组件引用使用 <code>src</code>、<code>name</code> 两个属性，以空标签书写。<code>src</code> 相对于当前 XML 文件解析，且不能越出 UI 目录。组件文件只定义这一份组件；需要嵌套时继续引用其它文件。循环引用会报错。</p>
+        <h3>名字与 ID 怎么展开</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>源文件中的名称</th><th>left 实例</th><th>right 实例</th></tr></thead>
+            <tbody>
+              <tr><td>外层组件名</td><td><code>left</code></td><td><code>right</code></td></tr>
+              <tr><td>id="panel"</td><td><code>left.panel</code></td><td><code>right.panel</code></td></tr>
+              <tr><td>id="title"</td><td><code>left.title</code></td><td><code>right.title</code></td></tr>
+              <tr><td>嵌套 name="connection"</td><td><code>left.connection</code></td><td><code>right.connection</code></td></tr>
+              <tr><td>嵌套 id="state"</td><td><code>left.connection.state</code></td><td><code>right.connection.state</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>前缀覆盖组件展开后的整个子树。普通父 Block 的 ID 不参与拼接，因此上例的标题是 <code>left.title</code>。已有 ID 按“组件名 + 点号 + 原 ID”生成，没有 ID 的节点保持无 ID。名称按最终字符串检查唯一性；重复组件名或最终 ID 都是加载错误。代码通过 <code>left.connection.state</code> 这样的完整 ID 查找节点。</p>
+        <h3>一组内容的位置与大小</h3>
+        <p>组件本身只负责展开和命名。调用处用已有的 Block 提供位置和尺寸，上例的卡片内容便以两个包装 Block 分别作为父级。组件内部的填充尺寸与锚点随父矩形重新计算，固定尺寸仍按各自的像素值布局。</p>
+      </section>
+
+      <section class="doc-section" id="tree">
+        <div class="section-kicker">16 / GoUI XML</div>
+        <h2>子节点与绘制层级</h2>
+        <p class="lead">Block 和 Button 可以包含子节点，提供坐标空间和绘制层级。父子关系用于组合界面，子节点可以绘制到父矩形外。</p>
+        <ul class="rule-list">
+          <li>子节点的 <code>anchor</code> 参考父节点矩形，<code>pivot</code> 参考自身矩形；对齐后再应用像素偏移。</li>
+          <li>先绘制节点自身，再按 XML 顺序绘制其子树。同一父级中，后出现的子树位于上层。</li>
+          <li>父矩形及圆角不裁剪子树；子节点越出父矩形的部分仍可绘制，越出的按钮仍可参与命中。最终绘制受渲染目标边界限制。</li>
+          <li>Text 的文字、Image 的图片各自在自身绘制区域内处理溢出；<code>visible="false"</code> 则隐藏整个子树。</li>
+          <li>按钮命中使用与绘制相反的顺序，只检查 Button，普通可视节点不拦截按钮。</li>
+        </ul>
+        <pre><code class="language-xml" data-example="tree-card">&lt;block id="card" position="24,96" size="420,180"
+  color="#17212B" radius="12"&gt;
+  &lt;text position="16,16" size="388,32" font-size="20"&gt;Display 0&lt;/text&gt;
+  &lt;text position="16,60" size="388,28"
+    text-color="#B6D8D3"&gt;connected / 1920x1080&lt;/text&gt;
+&lt;/block&gt;</code></pre>
+        <p>第二个 Text 的 <code>position="16,60"</code> 相对父卡片计算。移动卡片时，其子树一起移动；子节点数量不会改变父节点尺寸。</p>
+      </section>
+
+      <section class="doc-section" id="pixels">
+        <div class="section-kicker">17 / GoUI XML</div>
+        <h2>小数坐标与像素取整</h2>
+        <p class="lead">XML 中的像素位置、固定尺寸和边距填写整数，但锚点乘上父尺寸时，布局中间结果可能带小数。这是几何坐标，最后需要对应到实际像素网格。</p>
+        <h3>为什么会算出 280.5</h3>
+        <p>父节点左边缘为 0，宽 801 像素；子节点宽 240 像素，<code>anchor</code> 和 <code>pivot</code> 的 X 分量均为 <code>0.5</code>，横向偏移为 0：</p>
+        <div class="formula">父节点中心 = 801 × 0.5 = 400.5
+自身左边缘 = 400.5 − 240 × 0.5 = 280.5
+自身右边缘 = 280.5 + 240 = 520.5</div>
+        <p>布局使用小数完成整棵树的坐标计算，最终将屏幕坐标中的左、上、右、下边缘各自取最近整数；恰好半像素时向远离 0 的方向取整。上例得到左边缘 281、右边缘 521，宽度仍为 240。</p>
+        <p>绘制和按钮命中共用这个最终矩形。相邻节点共享同一条几何边缘时，取整结果也相同。<code>anchor</code>、<code>pivot</code> 仍可填写 0～1 之间的小数。</p>
+      </section>
+
+      <section class="doc-section" id="dirty">
+        <div class="section-kicker">18 / GoUI XML</div>
+        <h2>Block 与局部脏区重绘</h2>
+        <p class="lead">所有可视节点共享 Block 的矩形和层级，因此状态变化可以标记对应节点需要重绘。XML 不需要增加脏标记标签或属性。预览版提供按 ID 更新文字、颜色、可见状态和按钮禁用状态的接口。</p>
+        <pre><code class="language-go">renderer.SetText("status", "DRM connected")
+renderer.SetColor("status-panel", color.NRGBA{R: 32, G: 46, B: 46, A: 255})
+renderer.SetVisible("warning", false)
+renderer.SetDisabled("start-button", true)</code></pre>
+        <p>这些更新会使相关矩形进入脏区。下一次请求帧时，渲染器清理并重画脏区内的背景和相交节点，返回新帧给窗口后端；未改变的部分沿用上一帧。调整窗口尺寸时会重新计算整棵树并完整绘制。查找使用展开后的 ID，例如 <code>left.status.value</code>。</p>
+        <div class="callout"><strong>变化范围。</strong>隐藏或显示分组时，脏区覆盖节点及子树的范围；子节点可以超出父矩形，因此这些越界区域也会被重画。当前更新接口不修改节点位置和尺寸。</div>
+      </section>
+
+      <section class="doc-section" id="font-files">
+        <div class="section-kicker">19 / GoUI XML</div>
+        <h2>字体文件怎么选</h2>
+        <p class="lead">你下载的阿里巴巴普惠体 3.0 按字重分目录，每个目录中又提供多种格式。同一个字重使用一种合适的字体文件即可；本教程的字体注册使用 TTF。</p>
+        <h3>同一个字重为什么有五种文件</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>扩展名</th><th>用途</th><th>本项目中的选择</th></tr></thead>
+            <tbody>
+              <tr><td>.ttf</td><td>常用字体文件，通常使用 TrueType 轮廓。</td><td>用于配置中的 <code>font.src</code>。</td></tr>
+              <tr><td>.otf</td><td>常见的 OpenType 字体文件，可能使用不同的字形轮廓格式。</td><td>这套字体同时提供的另一种格式；具体支持取决于字体解析器。</td></tr>
+              <tr><td>.woff / .woff2</td><td>面向网页传输的字体格式，通过压缩减小下载体积。</td><td>网页嵌入字体时使用。</td></tr>
+              <tr><td>.eot</td><td>较早的网页嵌入字体格式，源于旧版 Internet Explorer 的使用场景。</td><td>此处选择随包提供的 TTF。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>字重名称是什么意思</h3>
+        <p><code>35 Thin</code> 是细字重，之后依次有 <code>45 Light</code>、<code>55 Regular</code>、<code>65 Medium</code>、<code>75 SemiBold</code>、<code>85 Bold</code>、<code>95 ExtraBold</code>、<code>105 Heavy</code> 和 <code>115 Black</code>。目录数字是这套字体的字重命名，<code>font-size</code> 则控制显示大小，两者分别设置。</p>
+        <h3>Regular 与 RegularL3</h3>
+        <p>这两份本地 TTF 的字重值均为 400，属于常规字重。<code>L3</code> 表示更大的字符覆盖版本：本地普通 Regular 的字符映射约覆盖 2.9 万个 Unicode 码位，RegularL3 约覆盖 6 万个。L3 增加的是字符覆盖。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>本地字体文件</th><th>文件大小</th><th>用法</th></tr></thead>
+            <tbody>
+              <tr><td>55-Regular.ttf</td><td>8,532,824 字节，约 8.5 MB</td><td>本教程默认字体示例。</td></tr>
+              <tr><td>55-RegularL3.ttf</td><td>21,725,156 字节，约 21.7 MB</td><td>需要更广字符覆盖时，可改为注册这份文件。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>先在 UI 目录中提供 <code>AlibabaPuHuiTi-3-55-Regular.ttf</code> 并注册为 <code>default</code>；需要粗体时再提供相应字重，按独立名称注册。随应用分发时应同时保留字体包的授权说明；当前下载目录中未发现单独的授权文件，可从官方字体包补齐。</p>
+        <p class="small">格式说明参考：<a href="https://learn.microsoft.com/en-us/typography/opentype/spec/otff" target="_blank" rel="noopener noreferrer">OpenType 文件规范</a>、<a href="https://www.w3.org/TR/WOFF2/" target="_blank" rel="noopener noreferrer">WOFF 2.0 规范</a>、<a href="https://www.w3.org/Submission/EOT/" target="_blank" rel="noopener noreferrer">EOT 格式说明</a>。字重、码位覆盖与文件大小依据当前下载的字体文件核对。</p>
+      </section>
+
+      <section class="doc-section" id="complete">
+        <div class="section-kicker">20 / GoUI XML</div>
+        <h2>完整的 DRM 监视页面</h2>
+        <p class="lead">下面的 <code>main.xml</code> 组合了全屏底色、顶部状态条、信息卡片和按钮。UI 目录同时准备快速开始中的 <code>config.xml</code> 与默认字体；所有 Text 使用已注册的 <code>default</code>。</p>
+        <pre><code class="language-xml">&lt;ui id="drm-monitor" color="#0D1117"&gt;
+  &lt;block
+    id="topbar"
+    anchor="0,0"
+    pivot="0,0"
+    position="0,0"
+    size="-1,56"
+    color="#182128"&gt;
+    &lt;text
+      id="app-title"
+      anchor="0,0"
+      pivot="0,0"
+      position="24,0"
+      size="300,56"
+      font-size="18"
+      text-color="#F4F7F7"
+      valign="middle"&gt;GoUI DRM Monitor&lt;/text&gt;
+    &lt;text
+      id="connection-state"
+      anchor="1,0.5"
+      pivot="1,0.5"
+      position="-24,0"
+      size="240,32"
+      text-color="#83C5B8"
+      align="right"
+      valign="middle"&gt;DRM connected&lt;/text&gt;
+  &lt;/block&gt;
+
+  &lt;block
+    id="display-card"
+    anchor="0,0"
+    pivot="0,0"
+    position="24,80"
+    size="440,196"
+    color="#182128"
+    radius="10"&gt;
+    &lt;text anchor="0,0" pivot="0,0" position="20,18" size="380,32"
+      font-size="20"&gt;Display 0&lt;/text&gt;
+    &lt;text anchor="0,0" pivot="0,0" position="20,62" size="400,28"
+      text-color="#A8B3B5"&gt;Connector: HDMI-A-1&lt;/text&gt;
+    &lt;text anchor="0,0" pivot="0,0" position="20,96" size="400,28"
+      text-color="#A8B3B5"&gt;Mode: 1920 x 1080 @ 60 Hz&lt;/text&gt;
+    &lt;text anchor="0,0" pivot="0,0" position="20,130" size="400,28"
+      text-color="#83C5B8"&gt;CRTC: active&lt;/text&gt;
+  &lt;/block&gt;
+
+  &lt;button
+    id="test-page-flip"
+    anchor="0,0"
+    pivot="0,0"
+    position="24,300"
+    size="196,48"
+    color="#B4473B"
+    radius="6"
+    on-click="drm.test-page-flip"&gt;
+    &lt;text
+      size="-1,-1"
+      text-color="#FFFFFF"
+      font-size="16"
+      align="center"
+      valign="middle"&gt;Test page flip&lt;/text&gt;
+  &lt;/button&gt;
+
+  &lt;text
+    id="footer"
+    anchor="0,1"
+    pivot="0,1"
+    position="0,-18"
+    size="-1,24"
+    margin="24,0,24,0"
+    font-size="12"
+    text-color="#78858A"&gt;GoUI / software renderer / DRM-KMS&lt;/text&gt;
+&lt;/ui&gt;</code></pre>
+        <div class="callout"><strong>运行时数据更新。</strong>DRM 状态变化时，只更新对应 Text Block 的文本并标记该 Block 脏。静态背景和没有变化的卡片内容不需要重复计算布局。</div>
+      </section>
+
+      <section class="doc-section" id="reference">
+        <div class="section-kicker">21 / GoUI XML</div>
+        <h2>标签速查</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>标签</th><th>用途</th><th>常用属性 / 内容</th><th>子节点</th></tr></thead>
+            <tbody>
+              <tr><td>&lt;ui&gt;</td><td>页面根节点，覆盖渲染目标。</td><td><code>id</code>、<code>color</code></td><td>是</td></tr>
+              <tr><td>&lt;block&gt;</td><td>基础矩形、填充色、坐标空间和分组。</td><td>布局属性、通用属性（含 <code>color</code>、<code>radius</code>）</td><td>是</td></tr>
+              <tr><td>&lt;text&gt;</td><td>显示单行或自动换行文字。</td><td>布局与通用属性、<code>font</code>、<code>font-size</code>、<code>text-color</code>、<code>align</code>、<code>valign</code>、<code>wrap</code></td><td>文字内容</td></tr>
+              <tr><td>&lt;image&gt;</td><td>绘制图片资源。</td><td>布局与通用属性、<code>src</code>、<code>fit</code></td><td>否</td></tr>
+              <tr><td>&lt;button&gt;</td><td>可命中的交互区域，可组合子节点。</td><td>布局与通用属性、<code>on-click</code>、<code>disabled</code></td><td>是</td></tr>
+              <tr><td>&lt;component&gt;</td><td>展开组件文件并给 ID 加点号前缀。</td><td>引用：<code>src</code>、<code>name</code>；定义：透明根包装</td><td>定义中可有多个节点；引用为空标签</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>字体配置标签速查</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>标签</th><th>用途</th><th>写法</th></tr></thead>
+            <tbody>
+              <tr><td>&lt;config&gt;</td><td>config.xml 根节点。</td><td>包含 <code>fonts</code>。</td></tr>
+              <tr><td>&lt;fonts&gt;</td><td>字体注册表。</td><td>包含多个 <code>font</code>，必须登记 <code>default</code>。</td></tr>
+              <tr><td>&lt;font&gt;</td><td>为 TTF 文件注册名称。</td><td><code>name</code>、<code>src</code> 均必需。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>布局属性速查</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>属性</th><th>格式</th><th>记忆方式</th></tr></thead>
+            <tbody>
+              <tr><td>anchor</td><td>"x,y"，0～1</td><td>父组件上的点。</td></tr>
+              <tr><td>pivot</td><td>"x,y"，0～1</td><td>当前组件自身的点。</td></tr>
+              <tr><td>position</td><td>"x,y"，整数像素</td><td>两个点对齐后再偏移。</td></tr>
+              <tr><td>size</td><td>"width,height"，整数像素</td><td>-1 表示这一轴填充父组件。</td></tr>
+              <tr><td>margin</td><td>"left,top,right,bottom"，非负整数像素</td><td>仅影响 size=-1 的轴；其他两个方向的值忽略。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="footer-note">GoUI XML 使用教程 · 标签规范 0.1 · 示例中的命令名、颜色和资源路径可按项目替换。</div>
+      </section>
+    </div>
+  </main>
+
+  <script src="docs.js"></script>
+</body>
+</html>
