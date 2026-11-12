@@ -34,7 +34,7 @@ func TestOpenLoadsUIAndDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if app.Page() == nil || app.document.Window.Backend != "desktop" || app.document.Window.Display != 0 || app.document.Window.Width != 960 || app.document.Window.Height != 640 || app.document.Window.Fullscreen {
+	if app.Page() == nil || app.document.Window.Backend != "desktop" || app.document.Window.Display != 0 || app.document.Window.Width != 960 || app.document.Window.Height != 640 || app.document.Window.Fullscreen || !app.document.Window.Decorated || app.document.Window.Resizable || app.document.Window.MinWidth != 0 || app.document.Window.MinHeight != 0 {
 		t.Fatalf("unexpected application defaults: %#v", app.document.Window)
 	}
 	status, err := app.Page().GetText("status")
@@ -50,14 +50,27 @@ func TestOpenLoadsUIAndDefaults(t *testing.T) {
 }
 
 func TestOpenParsesWindowSettings(t *testing.T) {
-	config := `<config><window backend="desktop" display="1" width="1280" height="720" fullscreen="true"/><fonts><font name="default" src="fonts/default.ttf"/></fonts></config>`
+	config := `<config><window backend="desktop" display="1" width="1280" height="720" fullscreen="true" decorated="false" resizable="true" min-width="640" min-height="480"/><fonts><font name="default" src="fonts/default.ttf"/></fonts></config>`
 	app, err := Open(makeUITestDirectory(t, config))
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := app.document.Window
-	if got.Backend != "desktop" || got.Display != 1 || got.Width != 1280 || got.Height != 720 || !got.Fullscreen {
+	if got.Backend != "desktop" || got.Display != 1 || got.Width != 1280 || got.Height != 720 || !got.Fullscreen || got.Decorated || !got.Resizable || got.MinWidth != 640 || got.MinHeight != 480 {
 		t.Fatalf("window settings = %#v", got)
+	}
+	_ = app.renderer.Close()
+}
+
+func TestWindowOperationsRequireRunningWindow(t *testing.T) {
+	app, err := Open(makeUITestDirectory(t, `<config><fonts><font name="default" src="fonts/default.ttf"/></fonts></config>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, operation := range []func() error{app.MinimizeWindow, app.ToggleMaximizeWindow, app.CloseWindow} {
+		if err := operation(); err == nil || !strings.Contains(err.Error(), "window is not running") {
+			t.Errorf("window operation returned %v before Run", err)
+		}
 	}
 	_ = app.renderer.Close()
 }

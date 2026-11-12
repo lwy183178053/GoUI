@@ -9,7 +9,7 @@ GoUI 使用 XML 描述界面、使用 Go 编写业务代码。框架是普通 Go
 需要 Go 1.25 或更新版本。仓库内示例是一个独立 Go 模块：
 
 ```powershell
-cd GoUIExampleProject
+cd example/hello-world
 go run .
 ```
 
@@ -74,7 +74,15 @@ func main() {
 }
 ```
 
-`Open` 的参数是直接包含 `config.xml` 和 `main.xml` 的 UI 目录。`Page` 提供 `GetBlock`、`GetText`、`GetImage`、`GetButton`，Getter 返回组件和错误，ID 不存在或标签类型不符会立即报错。组件共用 `SetColor`、`SetVisible` 和 `MoveTo`、`RotateTo`、`ScaleTo` 动画方法；Text 还提供 `SetText`、`SetTextColor`，Button 还提供 `SetDisabled`、`OnMouseEnter`、`OnMouseLeave`、`OnMouseDown`、`OnMouseUp` 和 `OnClick`。每种鼠标事件在一个按钮上只能绑定一次，XML 不再声明 `on-click`。
+`Open` 的参数是直接包含 `config.xml` 和 `main.xml` 的 UI 目录。`Page` 提供 `GetBlock`、`GetText`、`GetImage`、`GetButton`，Getter 返回组件和错误，ID 不存在或标签类型不符会立即报错。组件共用 `SetColor`、`SetVisible` 和 `MoveTo`、`RotateTo`、`ScaleTo` 动画方法；Text 还提供 `SetText`、`SetTextColor`，Button 还提供 `SetDisabled`、`OnMouseEnter`、`OnMouseLeave`、`OnMouseDown`、`OnMouseUp` 和 `OnClick`。Button 的 XML 属性 `hover-color` 可设置鼠标进入时的填充色，移出后自动恢复 `color`；每种鼠标事件在一个按钮上只能绑定一次，XML 不再声明 `on-click`。
+
+窗口可以通过 `<window decorated="false">` 隐藏系统标题栏和边框，再将 Button 事件绑定到 `app.MinimizeWindow()`、`app.ToggleMaximizeWindow()` 和 `app.CloseWindow()`。最大化/还原需要 `resizable="true"`。
+
+```go
+check(closeButton.OnClick(func(*goui.Page) error {
+    return app.CloseWindow()
+}))
+```
 
 动画方法的时长使用 `time.Duration`，例如 `500*time.Millisecond`。移动目标是父节点坐标中的 `position`，旋转和缩放围绕组件的 `pivot` 执行；Text、Image、Button 因嵌入 Block 也可使用这些方法。动画使用线性插值，时长为 0 时立即生效。
 
@@ -85,14 +93,18 @@ func main() {
 ```xml
 <config>
   <app name="My App" version="1.0.0" />
-  <window backend="desktop" display="0" width="960" height="640" fullscreen="false" />
+  <window backend="desktop" display="0" width="960" height="640"
+    fullscreen="false" decorated="true" resizable="false"
+    min-width="640" min-height="480" />
   <fonts>
     <font name="default" src="fonts/default.ttf" />
   </fonts>
 </config>
 ```
 
-`display` 从 0 开始，0 是系统主显示器。`goui.Displays()` 返回桌面显示器列表及其索引、名称和尺寸；可用 `len(displays)` 查看显示器数量。窗口模式使用 `width` 和 `height`，全屏模式使用窗口后端报告的目标显示器尺寸。尺寸单位是设备独立像素，高 DPI 缩放时可能不同于面板物理像素。`backend="drm"` 当前会返回 `DRM backend is not implemented yet`。
+`display` 从 0 开始，0 是系统主显示器。`goui.Displays()` 返回桌面显示器列表及其索引、名称和逻辑尺寸；可用 `len(displays)` 查看显示器数量。窗口模式使用 `width` 和 `height`，全屏模式使用窗口后端报告的目标显示器尺寸，单位是设备独立像素。桌面窗口会按显示器缩放比例创建物理像素级的渲染画布，例如 120% 缩放下，逻辑尺寸 2133×1200 对应约 2560×1440 个渲染像素。XML 中的布局尺寸和字号按渲染像素计算，不会再被桌面缩放二次放大。`backend="drm"` 当前会返回 `DRM backend is not implemented yet`。
+
+`decorated` 默认 `true`，设为 `false` 会隐藏系统标题栏和边框；此时应在 UI 中提供自己的窗口按钮。`resizable` 默认 `false`，设为 `true` 后用户可拖动窗口边缘调整大小，也允许最大化/还原。可选的 `min-width`、`min-height` 使用正整数设备独立像素限制窗口模式的最小尺寸；省略时不限制，且最小尺寸不能超过配置的初始窗口尺寸。
 
 字体路径和图片路径相对于 UI 目录；`component src` 相对于引用所在的 XML 文件。应用名用作窗口标题，版本保留为应用元数据，不写入 Windows exe 版本资源。
 
@@ -111,9 +123,10 @@ func main() {
 - `internal/backend/backend.go`：帧来源、呈现后端和指针输入接口。
 - `internal/backend/window/`：Ebitengine 桌面窗口、Windows/Linux 显示器枚举和其它系统的明确错误实现。
 - `doc/`：可直接打开的 XML 教程页面、样式和侧栏导航脚本。
-- `GoUIExampleProject/`：拥有独立 `go.mod` 的完整用户项目示例。
-- `GoUIExampleProject/main.go`：示例业务入口和按钮事件绑定。
-- `GoUIExampleProject/ui/`：示例 `config.xml`、`main.xml`、组件、字体和图片资源。
+- `example/hello-world/`：可直接运行的独立 Go 项目示例。
+- `example/hello-world/main.go`：示例业务入口和按钮事件绑定。
+- `example/hello-world/ui/`：示例 `config.xml`、`main.xml`、组件、字体和图片资源。
+- `example/robot-face/`：机器人动态矢量表情示例的预备目录；等矢量组件实现后补齐可运行项目。
 
 框架内部实现都留在 `internal/`，用户业务只需要导入根包 `github.com/lwy183178053/GoUI`。
 
@@ -130,7 +143,7 @@ go vet ./...
 示例模块单独检查：
 
 ```powershell
-cd GoUIExampleProject
+cd example/hello-world
 go test ./...
 ```
 

@@ -59,10 +59,26 @@ func (r *Renderer) PointerMove(x, y int) error {
 	}
 	previous := r.hovered
 	r.hovered = target
+	r.invalidateHover(previous)
+	r.invalidateHover(target)
 	if err := r.dispatch(previous, ui.MouseLeave); err != nil {
 		return err
 	}
 	return r.dispatch(target, ui.MouseEnter)
+}
+
+func (r *Renderer) invalidateHover(node *ui.Node) {
+	if node == nil || node.Button == nil || node.Button.HoverColor == nil {
+		return
+	}
+	delete(r.layers, node)
+	if box := r.boxes[node.ID]; box != nil {
+		r.invalidate(layout.SubtreeBounds(box))
+		return
+	}
+	if r.frame != nil {
+		r.invalidate(r.frame.Bounds())
+	}
 }
 
 // PointerDown 记录按下目标并派发鼠标按下事件。

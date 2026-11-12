@@ -30,13 +30,20 @@ type Renderer struct {
 	boxes    map[string]*layout.Box
 	nodes    map[string]*ui.Node
 	frame    *image.RGBA
-	dirty    image.Rectangle
-	handlers map[string]map[ui.ButtonEvent]func() error
-	motions  map[string]*animation
-	world    map[*ui.Node]affine
-	hovered  *ui.Node
-	pressed  *ui.Node
-	closed   bool
+	// 两个帧句柄共用像素内存，交替返回以通知窗口后端画面有更新。
+	frameA    *image.RGBA
+	frameB    *image.RGBA
+	published *image.RGBA
+	dirty     image.Rectangle
+	images    map[*ui.Node]*image.RGBA
+	layers    map[*ui.Node]*image.RGBA
+	maskCache map[roundedMaskKey]*image.Alpha
+	handlers  map[string]map[ui.ButtonEvent]func() error
+	motions   map[string]*animation
+	world     map[*ui.Node]affine
+	hovered   *ui.Node
+	pressed   *ui.Node
+	closed    bool
 }
 
 func New(document *ui.Document) (*Renderer, error) {
@@ -44,15 +51,17 @@ func New(document *ui.Document) (*Renderer, error) {
 		return nil, errors.New("cannot render an empty document")
 	}
 	renderer := &Renderer{
-		document: document,
-		faces:    make(map[faceKey]font.Face),
-		boxes:    make(map[string]*layout.Box),
-		nodes:    make(map[string]*ui.Node),
-		handlers: make(map[string]map[ui.ButtonEvent]func() error),
-		motions:  make(map[string]*animation),
-		world:    make(map[*ui.Node]affine),
+		document:  document,
+		faces:     make(map[faceKey]font.Face),
+		boxes:     make(map[string]*layout.Box),
+		nodes:     make(map[string]*ui.Node),
+		images:    make(map[*ui.Node]*image.RGBA),
+		layers:    make(map[*ui.Node]*image.RGBA),
+		maskCache: make(map[roundedMaskKey]*image.Alpha),
+		handlers:  make(map[string]map[ui.ButtonEvent]func() error),
+		motions:   make(map[string]*animation),
+		world:     make(map[*ui.Node]affine),
 	}
-	renderer.indexNodes(document.Root)
 	if err := renderer.prepare(document.Root); err != nil {
 		_ = renderer.Close()
 		return nil, err
@@ -61,6 +70,9 @@ func New(document *ui.Document) (*Renderer, error) {
 }
 
 func (r *Renderer) prepare(node *ui.Node) error {
+	if node.ID != "" {
+		r.nodes[node.ID] = node
+	}
 	if node.Text != nil {
 		key := faceKey{node.Text.Font, node.Text.FontSize}
 		if _, exists := r.faces[key]; !exists {
@@ -83,7 +95,7 @@ func (r *Renderer) prepare(node *ui.Node) error {
 	return nil
 }
 
-// Frame 实现 backend.FrameSource。尺寸不变时复用已绘制的画面。
+// Frame 实现 backend.FrameSource。画面变化时重用像素内存，并切换帧句柄。
 func (r *Renderer) Frame(width, height int) (*image.RGBA, error) {
 	if r.closed {
 		return nil, errors.New("renderer is closed")
@@ -93,29 +105,33 @@ func (r *Renderer) Frame(width, height int) (*image.RGBA, error) {
 	}
 	if r.layout == nil || r.frame.Rect.Dx() != width || r.frame.Rect.Dy() != height {
 		r.frame = image.NewRGBA(image.Rect(0, 0, width, height))
+		r.frameA = &image.RGBA{Pix: r.frame.Pix, Stride: r.frame.Stride, Rect: r.frame.Rect}
+		r.frameB = &image.RGBA{Pix: r.frame.Pix, Stride: r.frame.Stride, Rect: r.frame.Rect}
+		r.published = nil
 		r.rebuildLayout(width, height)
 		r.dirty = r.frame.Bounds()
 	}
-	if r.advanceAnimations(time.Now()) {
-		r.invalidate(r.frame.Bounds())
-	}
+	r.advanceAnimations(time.Now())
 	if r.dirty.Empty() {
-		return r.frame, nil
+		return r.published, nil
 	}
-	next := image.NewRGBA(r.frame.Bounds())
-	draw.Draw(next, next.Bounds(), r.frame, r.frame.Bounds().Min, draw.Src)
-	dirty := r.dirty.Intersect(next.Bounds())
-	draw.Draw(next, dirty, image.Transparent, image.Point{}, draw.Src)
-	r.world = make(map[*ui.Node]affine)
-	r.paint(next, r.layout, dirty, identity)
-	r.frame = next
+	dirty := r.dirty.Intersect(r.frame.Bounds())
+	// 根节点会先用清屏色覆盖脏区，所以这里不需要额外清空。
+	clear(r.world)
+	r.paint(r.frame, r.layout, dirty, identity)
+	if r.published == r.frameA {
+		r.published = r.frameB
+	} else {
+		r.published = r.frameA
+	}
 	r.dirty = image.Rectangle{}
-	return r.frame, nil
+	return r.published, nil
 }
 
 func (r *Renderer) rebuildLayout(width, height int) {
 	r.layout = layout.Compute(r.document.Root, width, height)
 	r.boxes = make(map[string]*layout.Box)
+	clear(r.maskCache)
 	r.indexBoxes(r.layout)
 }
 
@@ -128,15 +144,6 @@ func (r *Renderer) indexBoxes(box *layout.Box) {
 	}
 }
 
-func (r *Renderer) indexNodes(node *ui.Node) {
-	if node.ID != "" {
-		r.nodes[node.ID] = node
-	}
-	for _, child := range node.Children {
-		r.indexNodes(child)
-	}
-}
-
 func (r *Renderer) paint(frame *image.RGBA, box *layout.Box, limit image.Rectangle, parent affine) {
 	node := box.Node
 	if !node.Visible {
@@ -144,12 +151,22 @@ func (r *Renderer) paint(frame *image.RGBA, box *layout.Box, limit image.Rectang
 	}
 	transform := multiply(parent, nodeTransform(box, r.motions[node.ID]))
 	r.world[node] = transform
-	if transform == identity {
+	switch {
+	case transform == identity:
 		r.paintSelf(frame, box, limit)
-	} else if !box.Pixels.Empty() {
-		layer := image.NewRGBA(box.Pixels)
-		r.paintSelf(layer, box, layer.Bounds())
-		xdraw.CatmullRom.Transform(frame, toAff3(transform), layer, layer.Bounds(), draw.Over, nil)
+	case isTranslation(transform):
+		moved := translatedBox(box, transform[4], transform[5])
+		r.paintSelf(frame, &moved, limit)
+	case !box.Pixels.Empty():
+		layer := r.layerFor(box)
+		if clip := limit.Intersect(frame.Bounds()); !clip.Empty() {
+			destination := frame
+			if clip != frame.Bounds() {
+				destination = frame.SubImage(clip).(*image.RGBA)
+			}
+			// 动画变换使用近似双线性，减少旋转和缩放时的 CPU 开销。
+			xdraw.ApproxBiLinear.Transform(destination, toAff3(transform), layer, layer.Bounds(), draw.Over, nil)
+		}
 	}
 	// 子节点按同一组父级变换绘制，但不受父矩形裁剪。
 	for _, child := range box.Children {
@@ -165,15 +182,46 @@ func (r *Renderer) paintSelf(frame *image.RGBA, box *layout.Box, limit image.Rec
 			draw.Draw(frame, clip, image.NewUniform(node.Color), image.Point{}, draw.Src)
 		}
 	} else {
-		fillRoundedRectClip(frame, box.Pixels, node.Color, node.Radius, limit)
+		fill := node.Color
+		if node == r.hovered && node.Button != nil && !node.Button.Disabled && node.Button.HoverColor != nil {
+			fill = *node.Button.HoverColor
+		}
+		r.fillRoundedRectClip(frame, box.Pixels, fill, node.Radius, limit)
 	}
-	if node.Image != nil {
-		paintImage(frame, box.Pixels, limit, node.Image, node.Radius)
+	if node.Image != nil && !box.Pixels.Intersect(frame.Bounds()).Intersect(limit).Empty() {
+		var mask *image.Alpha
+		if node.Radius > 0 {
+			mask = r.roundedMask(box.Pixels.Size(), node.Radius)
+		}
+		paintImage(frame, box.Pixels, limit, r.scaledImage(node, box.Pixels), node.Radius, mask)
 	}
 	if node.Text != nil {
 		face := r.faces[faceKey{node.Text.Font, node.Text.FontSize}]
 		paintText(frame, box.Pixels, node.Text, face, limit)
 	}
+}
+
+func (r *Renderer) layerFor(box *layout.Box) *image.RGBA {
+	if layer := r.layers[box.Node]; layer != nil && layer.Bounds() == box.Pixels {
+		return layer
+	}
+	layer := image.NewRGBA(box.Pixels)
+	r.paintSelf(layer, box, layer.Bounds())
+	r.layers[box.Node] = layer
+	return layer
+}
+
+func (r *Renderer) fillRoundedRectClip(dst *image.RGBA, rect image.Rectangle, fill color.NRGBA, radius float64, limit image.Rectangle) {
+	clip := rect.Intersect(dst.Bounds()).Intersect(limit)
+	if clip.Empty() || fill.A == 0 {
+		return
+	}
+	if radius <= 0 {
+		draw.Draw(dst, clip, image.NewUniform(fill), image.Point{}, draw.Over)
+		return
+	}
+	mask := r.roundedMask(rect.Size(), radius)
+	draw.DrawMask(dst, clip, image.NewUniform(fill), image.Point{}, mask, clip.Min.Sub(rect.Min), draw.Over)
 }
 
 func (r *Renderer) node(id string) (*ui.Node, *layout.Box, error) {
@@ -229,6 +277,7 @@ func (r *Renderer) SetText(id, value string) error {
 	}
 	if node.Text.Content != value {
 		node.Text.Content = value
+		delete(r.layers, node)
 		if box != nil {
 			r.invalidate(box.Pixels)
 		}
@@ -244,6 +293,7 @@ func (r *Renderer) SetColor(id string, value color.NRGBA) error {
 	}
 	if node.Color != value {
 		node.Color = value
+		delete(r.layers, node)
 		if box != nil {
 			r.invalidate(box.Pixels)
 		}
@@ -262,6 +312,7 @@ func (r *Renderer) SetTextColor(id string, value color.NRGBA) error {
 	}
 	if node.Text.Color != value {
 		node.Text.Color = value
+		delete(r.layers, node)
 		if box != nil {
 			r.invalidate(box.Pixels)
 		}
@@ -295,6 +346,7 @@ func (r *Renderer) SetDisabled(id string, disabled bool) error {
 	}
 	if node.Button.Disabled != disabled {
 		node.Button.Disabled = disabled
+		delete(r.layers, node)
 		if box != nil {
 			r.invalidate(layout.SubtreeBounds(box))
 		}
@@ -315,9 +367,15 @@ func (r *Renderer) Close() error {
 	}
 	r.faces = nil
 	r.frame = nil
+	r.frameA = nil
+	r.frameB = nil
+	r.published = nil
 	r.layout = nil
 	r.boxes = nil
 	r.nodes = nil
+	r.images = nil
+	r.layers = nil
+	r.maskCache = nil
 	r.handlers = nil
 	r.motions = nil
 	r.world = nil

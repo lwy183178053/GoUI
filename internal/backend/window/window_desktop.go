@@ -3,11 +3,15 @@
 package window
 
 import (
+	"errors"
 	"image"
+	"sync/atomic"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/lwy183178053/GoUI/internal/backend"
 )
+
+var errWindowClosed = errors.New("window closed")
 
 func Displays() ([]Display, error) {
 	monitors := ebiten.AppendMonitors(nil)
@@ -36,26 +40,75 @@ func (p *presenter) Run(source backend.FrameSource, onReady func() error) error 
 	ebiten.SetWindowTitle(p.options.Title)
 	ebiten.SetMonitor(monitor)
 	ebiten.SetWindowSize(width, height)
+	ebiten.SetWindowDecorated(p.options.Decorated)
+	resizingMode := ebiten.WindowResizingModeDisabled
+	if p.options.Resizable {
+		resizingMode = ebiten.WindowResizingModeEnabled
+	}
+	ebiten.SetWindowResizingMode(resizingMode)
+	minWidth, minHeight := -1, -1
+	if !p.options.Fullscreen {
+		minWidth, minHeight = p.options.MinWidth, p.options.MinHeight
+	}
+	if minWidth == 0 {
+		minWidth = -1
+	}
+	if minHeight == 0 {
+		minHeight = -1
+	}
+	ebiten.SetWindowSizeLimits(minWidth, minHeight, -1, -1)
 	ebiten.SetFullscreen(p.options.Fullscreen)
+	ebiten.SetWindowClosingHandled(true)
+	defer ebiten.SetWindowClosingHandled(false)
 
-	game := &preview{source: source, onReady: onReady}
+	game := &preview{source: source, onReady: onReady, closeRequested: &p.closeRequested}
 	defer game.close()
-	return ebiten.RunGame(game)
+	err = ebiten.RunGame(game)
+	if errors.Is(err, errWindowClosed) {
+		return nil
+	}
+	return err
+}
+
+func (p *presenter) Minimize() error {
+	ebiten.MinimizeWindow()
+	return nil
+}
+
+func (p *presenter) ToggleMaximize() error {
+	if !p.options.Resizable {
+		return errors.New("window cannot be maximized when resizable is false")
+	}
+	if ebiten.IsWindowMaximized() || ebiten.IsWindowMinimized() {
+		ebiten.RestoreWindow()
+	} else {
+		ebiten.MaximizeWindow()
+	}
+	return nil
+}
+
+func (p *presenter) Close() error {
+	p.closeRequested.Store(true)
+	return nil
 }
 
 type preview struct {
-	source    backend.FrameSource
-	onReady   func() error
-	frame     *image.RGBA
-	texture   *ebiten.Image
-	err       error
-	mouseDown bool
-	ready     bool
+	source         backend.FrameSource
+	onReady        func() error
+	frame          *image.RGBA
+	texture        *ebiten.Image
+	err            error
+	mouseDown      bool
+	ready          bool
+	closeRequested *atomic.Bool
 }
 
 func (g *preview) Update() error {
 	if g.err != nil {
 		return g.err
+	}
+	if ebiten.IsWindowBeingClosed() || (g.closeRequested != nil && g.closeRequested.Load()) {
+		return errWindowClosed
 	}
 	if !g.ready {
 		g.ready = true
@@ -90,7 +143,11 @@ func (g *preview) Update() error {
 }
 
 func (g *preview) Layout(width, height int) (int, int) {
-	return max(1, width), max(1, height)
+	scale := 1.0
+	if monitor := ebiten.Monitor(); monitor != nil {
+		scale = monitor.DeviceScaleFactor()
+	}
+	return renderSize(width, height, scale)
 }
 
 func (g *preview) Draw(screen *ebiten.Image) {

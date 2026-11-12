@@ -85,7 +85,8 @@ type ImageStyle struct {
 }
 
 type ButtonStyle struct {
-	Disabled bool
+	Disabled   bool
+	HoverColor *color.NRGBA
 }
 
 type WindowConfig struct {
@@ -94,6 +95,10 @@ type WindowConfig struct {
 	Width      int
 	Height     int
 	Fullscreen bool
+	Decorated  bool
+	Resizable  bool
+	MinWidth   int
+	MinHeight  int
 }
 
 type Node struct {

@@ -11,11 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
-
-	"golang.org/x/image/font/opentype"
 )
 
 // Load 读取 config.xml 和 main.xml，加载字体并校验文档。
@@ -43,8 +39,10 @@ func loadFS(fsys fs.FS, sourceRoot string) (*Document, error) {
 		return nil, at(Source{".", 1, 1}, "UI file system is required")
 	}
 	doc := &Document{
-		Version:     "0.0.0",
-		Window:      WindowConfig{Backend: "desktop", Width: 960, Height: 640},
+		Version: "0.0.0",
+		Window: WindowConfig{
+			Backend: "desktop", Width: 960, Height: 640, Decorated: true,
+		},
 		nodes:       make(map[string]*Node),
 		resourceSet: make(map[string]struct{}),
 	}
@@ -52,8 +50,7 @@ func loadFS(fsys fs.FS, sourceRoot string) (*Document, error) {
 	if err != nil {
 		return nil, err
 	}
-	doc.Fonts, doc.AppName, doc.Version, doc.Window, err = loadConfig(config, fsys, doc)
-	if err != nil {
+	if err := loadConfig(config, fsys, doc); err != nil {
 		return nil, err
 	}
 	main, err := readXML(fsys, "main.xml", sourceName(sourceRoot, "main.xml"))
@@ -81,170 +78,6 @@ func sourceName(root, filename string) string {
 	return filepath.Join(root, filepath.FromSlash(filename))
 }
 
-type appSettings struct {
-	name    string
-	version string
-}
-
-var versionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$`)
-
-func loadConfig(config *element, fsys fs.FS, doc *Document) (map[string]*opentype.Font, string, string, WindowConfig, error) {
-	if config.name != "config" {
-		return nil, "", "", WindowConfig{}, at(config.source, "config.xml must have a <config> root")
-	}
-	if err := config.attributes(); err != nil {
-		return nil, "", "", WindowConfig{}, err
-	}
-	if err := config.noText(); err != nil {
-		return nil, "", "", WindowConfig{}, err
-	}
-	var fonts *element
-	var app *appSettings
-	window := doc.Window
-	windowSet := false
-	for _, child := range config.children {
-		switch child.name {
-		case "fonts":
-			if fonts != nil {
-				return nil, "", "", WindowConfig{}, at(child.source, "<config> can contain only one <fonts> element")
-			}
-			fonts = child
-		case "app":
-			if app != nil {
-				return nil, "", "", WindowConfig{}, at(child.source, "<config> can contain only one <app> element")
-			}
-			if err := child.attributes("name", "version"); err != nil {
-				return nil, "", "", WindowConfig{}, err
-			}
-			if len(child.children) != 0 {
-				return nil, "", "", WindowConfig{}, at(child.source, "<app> cannot contain child elements")
-			}
-			if err := child.noText(); err != nil {
-				return nil, "", "", WindowConfig{}, err
-			}
-			name, err := child.required("name")
-			if err != nil {
-				return nil, "", "", WindowConfig{}, err
-			}
-			version, err := child.required("version")
-			if err != nil {
-				return nil, "", "", WindowConfig{}, err
-			}
-			if !versionPattern.MatchString(version) {
-				return nil, "", "", WindowConfig{}, at(child.source, "app version must be major.minor.patch or major.minor.patch.build")
-			}
-			app = &appSettings{name: name, version: version}
-		case "window":
-			if windowSet {
-				return nil, "", "", WindowConfig{}, at(child.source, "<config> can contain only one <window> element")
-			}
-			windowSet = true
-			parsed, err := loadWindow(child, doc.Window)
-			if err != nil {
-				return nil, "", "", WindowConfig{}, err
-			}
-			window = parsed
-		default:
-			return nil, "", "", WindowConfig{}, at(child.source, "unsupported tag <%s> in <config>; config.xml requires <fonts>", child.name)
-		}
-	}
-	if fonts == nil {
-		return nil, "", "", WindowConfig{}, at(config.source, "<config> requires exactly one <fonts> element")
-	}
-	if err := fonts.attributes(); err != nil {
-		return nil, "", "", WindowConfig{}, err
-	}
-	if err := fonts.noText(); err != nil {
-		return nil, "", "", WindowConfig{}, err
-	}
-	result := make(map[string]*opentype.Font)
-	for _, entry := range fonts.children {
-		if entry.name != "font" {
-			return nil, "", "", WindowConfig{}, at(entry.source, "unsupported tag <%s> in <fonts>", entry.name)
-		}
-		if err := entry.attributes("name", "src"); err != nil {
-			return nil, "", "", WindowConfig{}, err
-		}
-		if len(entry.children) != 0 {
-			return nil, "", "", WindowConfig{}, at(entry.source, "<font> cannot contain child elements")
-		}
-		if err := entry.noText(); err != nil {
-			return nil, "", "", WindowConfig{}, err
-		}
-		name, err := entry.required("name")
-		if err != nil {
-			return nil, "", "", WindowConfig{}, err
-		}
-		if _, exists := result[name]; exists {
-			return nil, "", "", WindowConfig{}, at(entry.source, "duplicate font name %q", name)
-		}
-		src, err := entry.required("src")
-		if err != nil {
-			return nil, "", "", WindowConfig{}, err
-		}
-		asset, pathErr := assetPath(src)
-		if pathErr != nil {
-			return nil, "", "", WindowConfig{}, at(entry.source, "font src must be relative to the UI directory")
-		}
-		data, err := fs.ReadFile(fsys, asset)
-		if err != nil {
-			return nil, "", "", WindowConfig{}, at(entry.source, "read font %q: %w", name, err)
-		}
-		doc.addResource(asset)
-		parsed, err := opentype.Parse(data)
-		if err != nil {
-			return nil, "", "", WindowConfig{}, at(entry.source, "parse font %q (%s): %w", name, src, err)
-		}
-		result[name] = parsed
-	}
-	if _, exists := result["default"]; !exists {
-		return nil, "", "", WindowConfig{}, at(fonts.source, "<fonts> must register a font named %q", "default")
-	}
-	if app == nil {
-		return result, "", "0.0.0", window, nil
-	}
-	return result, app.name, app.version, window, nil
-}
-
-func loadWindow(e *element, defaults WindowConfig) (WindowConfig, error) {
-	if err := e.attributes("backend", "display", "width", "height", "fullscreen"); err != nil {
-		return WindowConfig{}, err
-	}
-	if len(e.children) != 0 {
-		return WindowConfig{}, at(e.source, "<window> cannot contain child elements")
-	}
-	if err := e.noText(); err != nil {
-		return WindowConfig{}, err
-	}
-	if value, exists := e.attrs["backend"]; exists {
-		if value != "desktop" && value != "drm" {
-			return WindowConfig{}, at(e.source, "window backend must be desktop or drm")
-		}
-		defaults.Backend = value
-	}
-	for _, item := range []struct {
-		name   string
-		target *int
-		min    int
-	}{{"display", &defaults.Display, 0}, {"width", &defaults.Width, 1}, {"height", &defaults.Height, 1}} {
-		if value, exists := e.attrs[item.name]; exists {
-			number, err := strconv.Atoi(value)
-			if err != nil || number < item.min {
-				return WindowConfig{}, at(e.source, "window %s must be an integer >= %d", item.name, item.min)
-			}
-			*item.target = number
-		}
-	}
-	if value, exists := e.attrs["fullscreen"]; exists {
-		fullscreen, err := boolean(value)
-		if err != nil {
-			return WindowConfig{}, at(e.source, "window fullscreen must be true or false")
-		}
-		defaults.Fullscreen = fullscreen
-	}
-	return defaults, nil
-}
-
 var commonAttributes = []string{
 	"id", "visible", "anchor", "pivot", "position", "size", "margin", "color", "radius",
 }
@@ -264,7 +97,7 @@ func loadNode(e *element, doc *Document, root bool, fsys fs.FS) (*Node, error) {
 		allowed = append(append([]string(nil), commonAttributes...), "src", "fit")
 		node.Image = &ImageStyle{Fit: "stretch"}
 	case node.Kind == Button:
-		allowed = append(append([]string(nil), commonAttributes...), "disabled")
+		allowed = append(append([]string(nil), commonAttributes...), "disabled", "hover-color")
 		node.Button = &ButtonStyle{}
 	default:
 		return nil, at(e.source, "unsupported tag <%s>", e.name)
@@ -293,6 +126,15 @@ func loadNode(e *element, doc *Document, root bool, fsys fs.FS) (*Node, error) {
 	if !root {
 		if err := loadBlock(e, node); err != nil {
 			return nil, err
+		}
+	}
+	if node.Button != nil {
+		if value, exists := e.attrs["hover-color"]; exists {
+			parsed, err := parseColor(value)
+			if err != nil {
+				return nil, at(e.source, "hover-color must be #RRGGBB or #RRGGBBAA")
+			}
+			node.Button.HoverColor = &parsed
 		}
 	}
 	if node.Kind == Text {

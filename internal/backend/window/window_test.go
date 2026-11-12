@@ -32,3 +32,28 @@ func TestResolveWindowSize(t *testing.T) {
 		t.Fatal("fullscreen accepted a display with no usable dimensions")
 	}
 }
+
+func TestRenderSizeUsesDisplayScale(t *testing.T) {
+	width, height := renderSize(2133, 1200, 1.2)
+	if width != 2560 || height != 1440 {
+		t.Fatalf("render size = %dx%d, want 2560x1440", width, height)
+	}
+
+	width, height = renderSize(800, 600, 1)
+	if width != 800 || height != 600 {
+		t.Fatalf("render size at 100%% = %dx%d, want 800x600", width, height)
+	}
+}
+
+func TestWindowControls(t *testing.T) {
+	presenter := New(Options{}).(*presenter)
+	if err := presenter.ToggleMaximize(); err == nil || !strings.Contains(err.Error(), "resizable is false") {
+		t.Fatalf("non-resizable maximize returned %v", err)
+	}
+	if err := presenter.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !presenter.closeRequested.Load() {
+		t.Fatal("close request was not recorded")
+	}
+}

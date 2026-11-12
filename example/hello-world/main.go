@@ -28,12 +28,16 @@ func main() {
 	check(err)
 	scaleButton, err := page.GetButton("scale-button")
 	check(err)
+	minimizeButton, err := page.GetButton("window-minimize")
+	check(err)
+	maximizeButton, err := page.GetButton("window-maximize")
+	check(err)
+	closeButton, err := page.GetButton("window-close")
+	check(err)
 	target, err := page.GetBlock("motion-target")
 	check(err)
 
 	baseColor := color.NRGBA{R: 41, G: 126, B: 116, A: 255}
-	hoverColor := color.NRGBA{R: 54, G: 151, B: 133, A: 255}
-	downColor := color.NRGBA{R: 27, G: 96, B: 88, A: 255}
 	disabledColor := color.NRGBA{R: 83, G: 92, B: 92, A: 255}
 	runCount := 0
 	runDisabled := false
@@ -41,19 +45,16 @@ func main() {
 	duration := 500 * time.Millisecond
 
 	check(runButton.OnMouseEnter(func(*goui.Page) error {
-		return runButton.SetColor(hoverColor)
+		return status.SetText("鼠标已进入运行按钮")
 	}))
 	check(runButton.OnMouseLeave(func(*goui.Page) error {
-		if runDisabled {
-			return runButton.SetColor(disabledColor)
-		}
-		return runButton.SetColor(baseColor)
+		return status.SetText("鼠标已离开运行按钮")
 	}))
 	check(runButton.OnMouseDown(func(*goui.Page) error {
-		return runButton.SetColor(downColor)
+		return status.SetText("鼠标已按下")
 	}))
 	check(runButton.OnMouseUp(func(*goui.Page) error {
-		return runButton.SetColor(hoverColor)
+		return status.SetText("鼠标已抬起")
 	}))
 	check(runButton.OnClick(func(*goui.Page) error {
 		runCount++
@@ -115,6 +116,15 @@ func main() {
 			return err
 		}
 		return status.SetText("缩放动画已启动")
+	}))
+	check(minimizeButton.OnClick(func(*goui.Page) error {
+		return app.MinimizeWindow()
+	}))
+	check(maximizeButton.OnClick(func(*goui.Page) error {
+		return app.ToggleMaximizeWindow()
+	}))
+	check(closeButton.OnClick(func(*goui.Page) error {
+		return app.CloseWindow()
 	}))
 
 	check(app.Run())

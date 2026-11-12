@@ -201,6 +201,9 @@ func TestPageWithoutOpenApplicationReturnsError(t *testing.T) {
 	if _, err := (*Page)(nil).GetText("title"); err == nil {
 		t.Fatal("nil page unexpectedly returned a component")
 	}
+	if err := (*Block)(nil).SetColor(color.NRGBA{}); err == nil {
+		t.Fatal("nil component unexpectedly accepted an update")
+	}
 	if err := (*Application)(nil).Run(); err == nil {
 		t.Fatal("nil application unexpectedly ran")
 	}

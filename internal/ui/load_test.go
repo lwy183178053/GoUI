@@ -51,7 +51,7 @@ func TestLoadDocument(t *testing.T) {
 	if doc.Directory != dir || len(doc.Fonts) != 1 || doc.Fonts["default"] == nil {
 		t.Fatalf("wrong directory or fonts: %#v", doc)
 	}
-	if doc.Window != (WindowConfig{Backend: "desktop", Width: 960, Height: 640}) {
+	if doc.Window != (WindowConfig{Backend: "desktop", Width: 960, Height: 640, Decorated: true}) {
 		t.Fatalf("wrong default window settings: %#v", doc.Window)
 	}
 	if doc.Root.Color != (color.NRGBA{R: 16, G: 32, B: 48, A: 128}) || doc.Find("root") != doc.Root {
@@ -87,6 +87,11 @@ func TestLoadingErrorsHaveLocations(t *testing.T) {
 		{"negative display index", `<config><window display="-1"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `display must be an integer`},
 		{"zero window width", `<config><window width="0"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `width must be an integer`},
 		{"invalid fullscreen", `<config><window fullscreen="yes"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `fullscreen must be true or false`},
+		{"invalid decorated", `<config><window decorated="yes"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `decorated must be true or false`},
+		{"invalid resizable", `<config><window resizable="yes"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `resizable must be true or false`},
+		{"zero minimum width", `<config><window min-width="0"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `min-width must be a positive integer`},
+		{"minimum width exceeds window", `<config><window width="800" min-width="900"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `min-width cannot exceed width`},
+		{"minimum height exceeds window", `<config><window height="600" min-height="700"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `min-height cannot exceed height`},
 		{"duplicate window", `<config><window/><window/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `only one <window>`},
 		{"window children", `<config><window><child/></window><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `cannot contain child`},
 		{"unknown config attribute", `<config font="default"><fonts/></config>`, `<ui/>`, `unsupported attribute`},
@@ -100,6 +105,8 @@ func TestLoadingErrorsHaveLocations(t *testing.T) {
 		{"unknown tag", testConfig, `<ui><widget size="1,1"/></ui>`, `unsupported tag <widget>`},
 		{"image invalid fit", testConfig, `<ui><image size="1,1" src="a.png" fit="stretchy"/></ui>`, `fit must be`},
 		{"button invalid disabled", testConfig, `<ui><button size="1,1" disabled="yes"/></ui>`, `disabled must be`},
+		{"button invalid hover color", testConfig, `<ui><button size="1,1" hover-color="red"/></ui>`, `hover-color must be`},
+		{"hover color is button-only", testConfig, `<ui><block size="1,1" hover-color="#FFFFFF"/></ui>`, `unsupported attribute "hover-color"`},
 		{"include not supported", testConfig, `<ui><include src="x.xml"/></ui>`, `unsupported tag <include>`},
 		{"nested ui", testConfig, `<ui><ui/></ui>`, `unsupported tag <ui>`},
 		{"unknown attribute", testConfig, `<ui><block size="1,1" background="#FFFFFF"/></ui>`, `unsupported attribute "background"`},
@@ -150,6 +157,21 @@ func TestLoadingErrorsHaveLocations(t *testing.T) {
 	}
 }
 
+func TestWindowConfigOptions(t *testing.T) {
+	config := `<config><window decorated="false" resizable="true" min-width="640" min-height="480"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`
+	doc, err := Load(fixture(t, config, `<ui/>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := WindowConfig{
+		Backend: "desktop", Width: 960, Height: 640,
+		Decorated: false, Resizable: true, MinWidth: 640, MinHeight: 480,
+	}
+	if doc.Window != want {
+		t.Fatalf("window config = %#v, want %#v", doc.Window, want)
+	}
+}
+
 func TestRequiredFiles(t *testing.T) {
 	for _, name := range []string{"config.xml", "main.xml"} {
 		t.Run(name, func(t *testing.T) {
@@ -177,7 +199,7 @@ func TestUTF8BOMAndCDATA(t *testing.T) {
 }
 
 func TestProjectUI(t *testing.T) {
-	doc, err := Load(filepath.Join("..", "..", "GoUIExampleProject", "ui"))
+	doc, err := Load(filepath.Join("..", "..", "example", "hello-world", "ui"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +308,7 @@ func TestComponentErrors(t *testing.T) {
 func TestImageAndButtonAttributes(t *testing.T) {
 	dir := fixture(t, testConfig, `<ui>
   <image id="photo" size="16,8" src="assets/photo.png" fit="contain"/>
-  <button id="run" size="20,10" disabled="true"/>
+  <button id="run" size="20,10" disabled="true" hover-color="#2A5C80"/>
 </ui>`)
 	path := filepath.Join(dir, "assets", "photo.png")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -307,7 +329,7 @@ func TestImageAndButtonAttributes(t *testing.T) {
 	if photo.Image == nil || photo.Image.Image.Bounds().Size() != image.Pt(4, 2) || photo.Image.Fit != "contain" {
 		t.Fatalf("image attributes were not loaded: %#v", photo.Image)
 	}
-	if button.Button == nil || !button.Button.Disabled {
+	if button.Button == nil || !button.Button.Disabled || button.Button.HoverColor == nil || *button.Button.HoverColor != (color.NRGBA{R: 42, G: 92, B: 128, A: 255}) {
 		t.Fatalf("button attributes were not loaded: %#v", button.Button)
 	}
 }

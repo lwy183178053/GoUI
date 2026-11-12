@@ -135,6 +135,24 @@ func TestRoundedCornersAndRadiusClamp(t *testing.T) {
 	}
 }
 
+func TestRoundedMaskHasSmoothCoverageAndRendererCachesIt(t *testing.T) {
+	mask := roundedMaskForSize(image.Pt(48, 48), 17.3)
+	levels := make(map[uint8]bool)
+	for _, alpha := range mask.Pix {
+		levels[alpha] = true
+	}
+	if len(levels) < 12 {
+		t.Fatalf("rounded mask has only %d coverage levels, want smoother edges", len(levels))
+	}
+
+	renderer := rendererFor(t)
+	first := renderer.roundedMask(image.Pt(48, 48), 17.3)
+	second := renderer.roundedMask(image.Pt(48, 48), 17.3)
+	if first != second {
+		t.Fatal("rounded masks should be reused between frames")
+	}
+}
+
 func TestFrameCacheAndResize(t *testing.T) {
 	child := block(0, 0, 10, 10, red)
 	child.Anchor = ui.Vec2{X: 1, Y: 1}
@@ -159,6 +177,46 @@ func TestFrameCacheAndResize(t *testing.T) {
 	}
 	if _, err := renderer.Frame(1, 1); err == nil {
 		t.Fatal("closed renderer must reject rendering")
+	}
+}
+
+func TestChangedFramesReusePixelStorage(t *testing.T) {
+	target := block(0, 0, 8, 8, red)
+	target.ID = "target"
+	renderer := rendererFor(t, target)
+	first := frameFor(t, renderer, 16, 16)
+	pixelStorage := &first.Pix[0]
+
+	if err := renderer.SetColor("target", green); err != nil {
+		t.Fatal(err)
+	}
+	second := frameFor(t, renderer, 16, 16)
+	if second == first || &second.Pix[0] != pixelStorage {
+		t.Fatal("changed frame should rotate its handle and reuse pixel storage")
+	}
+	pixel(t, second, 1, 1, color.RGBA{G: 255, A: 255})
+	if err := renderer.SetColor("target", blue); err != nil {
+		t.Fatal(err)
+	}
+	third := frameFor(t, renderer, 16, 16)
+	if third != first || &third.Pix[0] != pixelStorage {
+		t.Fatal("next changed frame did not rotate back to the first handle")
+	}
+	pixel(t, third, 1, 1, color.RGBA{B: 255, A: 255})
+}
+
+func TestScaledImagesAreCached(t *testing.T) {
+	node := block(0, 0, 8, 8, color.NRGBA{})
+	node.Kind = ui.Image
+	node.Image = &ui.ImageStyle{Image: image.NewRGBA(image.Rect(0, 0, 2, 2)), Fit: "stretch"}
+	renderer := rendererFor(t, node)
+
+	first := renderer.scaledImage(node, image.Rect(0, 0, 8, 8))
+	if first == nil || renderer.scaledImage(node, image.Rect(0, 0, 8, 8)) != first {
+		t.Fatal("unchanged image size was not cached")
+	}
+	if renderer.scaledImage(node, image.Rect(0, 0, 10, 8)) == first {
+		t.Fatal("resizing an image node reused the old scaled image")
 	}
 }
 
@@ -270,7 +328,7 @@ func TestTextUsesSelectedFontAndOwnColor(t *testing.T) {
 }
 
 func TestExistingUIRendersAndResizes(t *testing.T) {
-	doc, err := ui.Load(filepath.Join("..", "..", "..", "GoUIExampleProject", "ui"))
+	doc, err := ui.Load(filepath.Join("..", "..", "..", "example", "hello-world", "ui"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,6 +400,7 @@ func TestButtonActionsAndDirtyUpdates(t *testing.T) {
 	outside := block(30, 30, 5, 5, red)
 	renderer := rendererFor(t, lower, upper, status, group, outside)
 	first := frameFor(t, renderer, 40, 40)
+	firstPixels := append([]byte(nil), first.Pix...)
 	called := 0
 	if err := renderer.SetButtonEvent("disabled", ui.Click, func() error { called += 10; return nil }); err != nil {
 		t.Fatal(err)
@@ -369,7 +428,7 @@ func TestButtonActionsAndDirtyUpdates(t *testing.T) {
 		t.Fatalf("releasing outside the pressed button should cancel the action: called=%d err=%v", called, err)
 	}
 	second := frameFor(t, renderer, 40, 40)
-	if second == first || reflect.DeepEqual(first.Pix, second.Pix) {
+	if second == first || reflect.DeepEqual(firstPixels, second.Pix) {
 		t.Fatal("text changes should repaint and publish a new frame")
 	}
 	if err := renderer.SetColor("run", blue); err != nil {
@@ -452,6 +511,32 @@ func TestButtonMouseEventsFollowPointer(t *testing.T) {
 	}
 }
 
+func TestButtonHoverColorChangesAndRestoresAutomatically(t *testing.T) {
+	base := color.NRGBA{R: 32, G: 64, B: 96, A: 255}
+	hover := color.NRGBA{R: 96, G: 160, B: 224, A: 255}
+	button := block(2, 2, 10, 10, base)
+	button.ID = "button"
+	button.Kind = ui.Button
+	button.Button = &ui.ButtonStyle{HoverColor: &hover}
+	renderer := rendererFor(t, button)
+	frameFor(t, renderer, 16, 16)
+
+	if err := renderer.PointerMove(4, 4); err != nil {
+		t.Fatal(err)
+	}
+	pixel(t, frameFor(t, renderer, 16, 16), 4, 4, color.RGBA{R: 96, G: 160, B: 224, A: 255})
+
+	if err := renderer.SetColor("button", blue); err != nil {
+		t.Fatal(err)
+	}
+	pixel(t, frameFor(t, renderer, 16, 16), 4, 4, color.RGBA{R: 96, G: 160, B: 224, A: 255})
+
+	if err := renderer.PointerMove(15, 15); err != nil {
+		t.Fatal(err)
+	}
+	pixel(t, frameFor(t, renderer, 16, 16), 4, 4, color.RGBA{B: 255, A: 255})
+}
+
 func TestTweenInterpolatesLinearly(t *testing.T) {
 	start := time.Unix(100, 0)
 	animation := tween{
@@ -465,6 +550,31 @@ func TestTweenInterpolatesLinearly(t *testing.T) {
 	value, running = animation.sample(start.Add(time.Second))
 	if running || value != animation.to {
 		t.Fatalf("completed tween = %v, running=%v", value, running)
+	}
+}
+
+func TestAnimationDoesNotRepublishAnUnchangedFrame(t *testing.T) {
+	item := block(0, 0, 4, 4, red)
+	item.ID = "item"
+	renderer := rendererFor(t, item)
+	first := frameFor(t, renderer, 8, 8)
+
+	started := time.Now().Add(time.Hour)
+	renderer.motions["item"] = &animation{
+		position: [2]float64{0, 0},
+		scale:    [2]float64{1, 1},
+		rotate: &tween{
+			from: [2]float64{0}, to: [2]float64{90},
+			started: started, duration: time.Second,
+		},
+	}
+
+	frame, err := renderer.Frame(8, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frame != first {
+		t.Fatal("unchanged animation frame was rendered again")
 	}
 }
 

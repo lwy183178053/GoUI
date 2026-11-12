@@ -98,12 +98,13 @@
         <pre><code class="language-xml" data-example="quick-config">&lt;config&gt;
   &lt;app name="GoUI Demo" version="1.0.0" /&gt;
   &lt;window backend="desktop" display="0"
-    width="960" height="640" fullscreen="false" /&gt;
+    width="960" height="640" fullscreen="false"
+    decorated="true" resizable="false" /&gt;
   &lt;fonts&gt;
     &lt;font name="default" src="fonts/AlibabaPuHuiTi-3-55-Regular.ttf" /&gt;
   &lt;/fonts&gt;
 &lt;/config&gt;</code></pre>
-        <p>将对应的 TTF 文件放入 UI 目录的 <code>fonts/</code> 中。<code>default</code> 是注册名称，Text 省略 <code>font</code> 时就使用它。<code>app</code> 可省略；应用名作为窗口标题，版本仅保留为应用元数据。<code>window</code> 可省略，默认使用主显示器上的 960×640 桌面窗口。尺寸以设备独立像素计，高 DPI 缩放时可能不同于面板物理像素。</p>
+        <p>将对应的 TTF 文件放入 UI 目录的 <code>fonts/</code> 中。<code>default</code> 是注册名称，Text 省略 <code>font</code> 时就使用它。<code>app</code> 可省略；应用名作为窗口标题，版本仅保留为应用元数据。<code>window</code> 可省略，默认使用主显示器上的 960×640 桌面窗口。窗口宽高使用设备独立像素；桌面渲染画布会根据显示器缩放比例换算为物理像素。</p>
         <h3>最小 main.xml</h3>
         <pre><code class="language-xml" data-example="quick-main">&lt;ui color="#0D1117"&gt;
   &lt;text
@@ -115,7 +116,7 @@
     text-color="#F4F7F7"
     font-size="24"&gt;GoUI&lt;/text&gt;
 &lt;/ui&gt;</code></pre>
-        <p class="small">坐标使用渲染目标的设备独立像素，父节点左上角为原点，X 向右、Y 向下。桌面模式下，根 <code>ui</code> 的矩形就是窗口客户区；全屏时对应所选显示器。高 DPI 缩放时，逻辑尺寸可能不同于面板物理像素。DRM 输出尚未实现。</p>
+        <p class="small">坐标、固定尺寸和字号使用渲染画布像素，父节点左上角为原点，X 向右、Y 向下。桌面模式下，根 <code>ui</code> 的矩形就是窗口客户区；全屏时对应所选显示器。画布会按显示器缩放因子生成物理像素，例如 120% 缩放时，1600×900 个设备独立像素对应 1920×1080 个渲染像素，避免把低分辨率画面再次放大。DRM 后端会直接使用显示设备像素。</p>
         <h3>Go 入口与按钮事件</h3>
         <pre><code class="language-go">package main
 
@@ -203,15 +204,27 @@ func main() {
               <tr><td>app</td><td><code>name</code>、<code>version</code></td><td>应用名称用于窗口标题；版本作为应用元数据，不写入 exe 文件属性。</td></tr>
               <tr><td>window.backend</td><td><code>desktop</code> 或 <code>drm</code></td><td>默认 <code>desktop</code>；当前 <code>drm</code> 仅保留配置识别，启动时会报告尚未实现。</td></tr>
               <tr><td>window.display</td><td>从 0 开始的整数</td><td>选择桌面显示器；0 是系统主显示器。可通过 <code>goui.Displays()</code> 查询数量、名称和逻辑尺寸。</td></tr>
-              <tr><td>window.width / height</td><td>正整数设备独立像素</td><td>默认 960×640；窗口模式使用该客户区尺寸，全屏模式使用所选显示器报告的尺寸。</td></tr>
+              <tr><td>window.width / height</td><td>正整数设备独立像素</td><td>默认 960×640；窗口模式使用该客户区尺寸，全屏模式使用所选显示器报告的尺寸。渲染画布会按缩放比例换算成物理像素。</td></tr>
               <tr><td>window.fullscreen</td><td><code>true</code> / <code>false</code></td><td>默认 <code>false</code>，桌面后端使用普通窗口。</td></tr>
+              <tr><td>window.decorated</td><td><code>true</code> / <code>false</code></td><td>默认 <code>true</code>。设为 <code>false</code> 隐藏系统标题栏和边框；需在 UI 中提供自定义窗口按钮。</td></tr>
+              <tr><td>window.resizable</td><td><code>true</code> / <code>false</code></td><td>默认 <code>false</code>。设为 <code>true</code> 后允许用户拖动边缘缩放，也可以最大化/还原。</td></tr>
+              <tr><td>window.min-width / min-height</td><td>可选正整数设备独立像素</td><td>窗口模式下的最小宽高；省略时不限制。最小宽高不能超过对应的初始窗口尺寸。</td></tr>
               <tr><td>fonts</td><td>包含多个 font</td><td>字体注册表，至少登记一个名为 <code>default</code> 的字体。</td></tr>
               <tr><td>font.name</td><td>非空字符串，必需</td><td>供 <code>text font="名称"</code> 引用；同一注册表中的名称不能重复。</td></tr>
               <tr><td>font.src</td><td>TTF 文件路径，必需</td><td>相对于 UI 目录，字体随应用资源提供。</td></tr>
             </tbody>
           </table>
         </div>
-        <p>上例中，正文省略 <code>font</code> 即使用 Regular；需要较粗的标题时，显式选择 <code>semibold</code>。需要几种字重，就登记对应的几个文件。</p>
+        <p>无系统标题栏时，可以在 Go 的 Button 点击事件中调用 <code>app.MinimizeWindow()</code>、<code>app.ToggleMaximizeWindow()</code> 和 <code>app.CloseWindow()</code>。最大化/还原要求配置 <code>resizable="true"</code>。上例中，正文省略 <code>font</code> 即使用 Regular；需要较粗的标题时，显式选择 <code>semibold</code>。需要几种字重，就登记对应的几个文件。</p>
+        <pre><code class="language-go">closeButton, err := page.GetButton("window-close")
+if err != nil {
+    return err
+}
+if err := closeButton.OnClick(func(*goui.Page) error {
+    return app.CloseWindow()
+}); err != nil {
+    return err
+}</code></pre>
         <pre><code class="language-xml" data-example="font-choice">&lt;text size="320,40" font="semibold" font-size="24"&gt;显示设备&lt;/text&gt;</code></pre>
         <p>缺少 <code>default</code>、字体重名、文件不存在或无法解析，以及 Text 引用未注册字体时，加载失败。字体直接从 UI 目录读取，目标 Linux 的系统字体不参与查找。首版桌面窗口支持 Windows 和 Linux；DRM/KMS 输出尚未实现。</p>
       </section>
@@ -431,17 +444,18 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
       <section class="doc-section" id="button">
         <div class="section-kicker">14 / GoUI XML</div>
         <h2><code>button</code> 标签</h2>
-        <p class="lead"><code>button</code> 是可接收鼠标事件的 Block，只增加禁用状态。用户在 Go 入口中通过 <code>GetButton</code> 注册事件；XML 只描述按钮本身和外观。</p>
+        <p class="lead"><code>button</code> 是可接收鼠标事件的 Block。XML 可为它设置鼠标进入时的填充色；用户仍可在 Go 入口中通过 <code>GetButton</code> 注册业务事件。</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>属性</th><th>类型 / 默认值</th><th>说明</th></tr></thead>
             <tbody>
               <tr><td>disabled</td><td>true / false，默认 false</td><td>为 <code>true</code> 时不接收鼠标回调，但仍挡住下方的按钮；外观由自身属性与子节点决定。</td></tr>
+              <tr><td>hover-color</td><td>颜色，可省略</td><td>鼠标停在启用的按钮上时使用的填充色，支持 <code>#RRGGBB</code> 和 <code>#RRGGBBAA</code>。离开后恢复 <code>color</code>；不影响按钮子节点。</td></tr>
             </tbody>
           </table>
         </div>
         <pre><code class="language-xml" data-example="start-button">&lt;button id="start-button" position="24,300" size="180,48"
-  color="#B4473B" radius="6"&gt;
+  color="#B4473B" hover-color="#D05A4D" radius="6"&gt;
   &lt;text size="-1,-1" text-color="#FFFFFF" font-size="16"
     align="center" valign="middle"&gt;运行命令&lt;/text&gt;
 &lt;/button&gt;</code></pre>
@@ -461,14 +475,15 @@ if err := button.OnClick(func(page *goui.Page) error {
 if err != nil { return err }
 
 if err := button.OnMouseEnter(func(*goui.Page) error {
-  return button.SetColor(color.NRGBA{R: 210, G: 90, B: 70, A: 255})
+  return status.SetText("鼠标进入按钮")
 }); err != nil { return err }
 if err := button.OnMouseLeave(func(*goui.Page) error {
-  return button.SetColor(color.NRGBA{R: 180, G: 70, B: 60, A: 255})
+  return status.SetText("鼠标离开按钮")
 }); err != nil { return err }
 return button.OnClick(func(*goui.Page) error {
   return status.SetText("命令已执行")
 })</code></pre>
+        <p><code>hover-color</code> 只负责按钮底色的悬停反馈，不需要再用 <code>OnMouseEnter</code> 和 <code>OnMouseLeave</code> 手动切换颜色；这两个 Go 事件可继续用于更新提示或业务状态。</p>
         <p><code>OnMouseEnter</code> 和 <code>OnMouseLeave</code> 在鼠标目标变化时触发；<code>OnMouseDown</code> 在左键于按钮上按下时触发；<code>OnMouseUp</code> 在左键释放且指针位于按钮上时触发。<code>OnClick</code> 只在按下和释放命中同一个按钮时触发。</p>
         <h3>点击与重叠规则</h3>
         <ol class="rule-list">
@@ -739,7 +754,7 @@ return button.SetDisabled(true)</code></pre>
               <tr><td>&lt;block&gt;</td><td>基础矩形、填充色、坐标空间和分组。</td><td>布局属性、通用属性；Go API 可移动、旋转、缩放</td><td>是</td></tr>
               <tr><td>&lt;text&gt;</td><td>显示单行或自动换行文字。</td><td>布局与通用属性、<code>font</code>、<code>font-size</code>、<code>text-color</code>、<code>align</code>、<code>valign</code>、<code>wrap</code></td><td>文字内容</td></tr>
               <tr><td>&lt;image&gt;</td><td>绘制图片资源。</td><td>布局与通用属性、<code>src</code>、<code>fit</code></td><td>否</td></tr>
-              <tr><td>&lt;button&gt;</td><td>可命中的交互区域，可组合子节点。</td><td>布局与通用属性、<code>disabled</code>；鼠标事件由 Go 代码绑定</td><td>是</td></tr>
+              <tr><td>&lt;button&gt;</td><td>可命中的交互区域，可组合子节点。</td><td>布局与通用属性、<code>disabled</code>、<code>hover-color</code>；鼠标事件由 Go 代码绑定</td><td>是</td></tr>
               <tr><td>&lt;component&gt;</td><td>展开组件文件并给 ID 加点号前缀。</td><td>引用：<code>src</code>、<code>name</code>；定义：透明根包装</td><td>定义中可有多个节点；引用为空标签</td></tr>
             </tbody>
           </table>

@@ -10,13 +10,13 @@ import (
 	xdraw "golang.org/x/image/draw"
 )
 
-func paintImage(dst *image.RGBA, rect, limit image.Rectangle, style *ui.ImageStyle, radius float64) {
+func (r *Renderer) scaledImage(node *ui.Node, rect image.Rectangle) *image.RGBA {
+	style := node.Image
 	if style == nil || style.Image == nil || rect.Empty() {
-		return
+		return nil
 	}
-	clip := rect.Intersect(dst.Bounds()).Intersect(limit)
-	if clip.Empty() {
-		return
+	if cached := r.images[node]; cached != nil && cached.Bounds().Size() == rect.Size() {
+		return cached
 	}
 
 	width, height := rect.Dx(), rect.Dy()
@@ -45,12 +45,22 @@ func paintImage(dst *image.RGBA, rect, limit image.Rectangle, style *ui.ImageSty
 		}
 	}
 	xdraw.CatmullRom.Scale(scaled, destination, style.Image, sourceRect, draw.Over, nil)
+	r.images[node] = scaled
+	return scaled
+}
 
+func paintImage(dst *image.RGBA, rect, limit image.Rectangle, scaled *image.RGBA, radius float64, mask *image.Alpha) {
+	if scaled == nil || rect.Empty() {
+		return
+	}
+	clip := rect.Intersect(dst.Bounds()).Intersect(limit)
+	if clip.Empty() {
+		return
+	}
 	localClip := clip.Sub(rect.Min)
 	if radius <= 0 {
 		draw.Draw(dst, clip, scaled, localClip.Min, draw.Over)
 		return
 	}
-	mask := roundedMask(imageRect, localClip, radius)
 	draw.DrawMask(dst, clip, scaled, localClip.Min, mask, localClip.Min, draw.Over)
 }

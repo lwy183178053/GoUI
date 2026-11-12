@@ -1,6 +1,8 @@
 <config>
     <app name="GoUI Demo" version="1.0.0" />
-    <window backend="desktop" display="0" width="960" height="860" fullscreen="false" />
+    <window backend="desktop" display="0" width="900" height="1000"
+        fullscreen="false" decorated="false" resizable="true"
+        min-width="640" min-height="600" />
     <fonts>
         <font name="default" src="fonts/AlibabaPuHuiTi-3-55-Regular.ttf" />
         <font name="Bold" src="fonts/AlibabaPuHuiTi-3-85-Bold.ttf" />

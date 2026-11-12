@@ -15,3 +15,15 @@ func Displays() ([]Display, error) {
 func (p *presenter) Run(backend.FrameSource, func() error) error {
 	return errors.New("desktop windows are supported on Windows and Linux only")
 }
+
+func (p *presenter) Minimize() error {
+	return errors.New("desktop windows are supported on Windows and Linux only")
+}
+
+func (p *presenter) ToggleMaximize() error {
+	return errors.New("desktop windows are supported on Windows and Linux only")
+}
+
+func (p *presenter) Close() error {
+	return errors.New("desktop windows are supported on Windows and Linux only")
+}

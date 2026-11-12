@@ -3,8 +3,8 @@ package backend
 
 import "image"
 
-// FrameSource 返回只读的预乘 RGBA 帧。画面未变时可以复用同一帧，
-// 内容变化时返回新帧；调用应在同一线程串行进行。
+// FrameSource 返回只读的预乘 RGBA 帧。调用方必须在再次调用 Frame 前读完画面；
+// 实现可能在下次调用时复用帧内存。调用应在同一线程串行进行。
 type FrameSource interface {
 	Frame(width, height int) (*image.RGBA, error)
 }

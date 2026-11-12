@@ -127,12 +127,11 @@ func finitePositive(value float64) bool {
 	return value > 0 && !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
-func (r *Renderer) advanceAnimations(now time.Time) bool {
-	active, changed, moved := false, false, false
+func (r *Renderer) advanceAnimations(now time.Time) {
+	changed, moved := false, false
 	for id, motion := range r.motions {
 		if motion.move != nil {
 			value, running := motion.move.sample(now)
-			active = active || running
 			if motion.position != value {
 				motion.position = value
 				changed = true
@@ -149,7 +148,6 @@ func (r *Renderer) advanceAnimations(now time.Time) bool {
 		}
 		if motion.rotate != nil {
 			value, running := motion.rotate.sample(now)
-			active = active || running
 			if motion.rotation != value[0] {
 				motion.rotation = value[0]
 				changed = true
@@ -160,7 +158,6 @@ func (r *Renderer) advanceAnimations(now time.Time) bool {
 		}
 		if motion.zoom != nil {
 			value, running := motion.zoom.sample(now)
-			active = active || running
 			if motion.scale != value {
 				motion.scale = value
 				changed = true
@@ -176,7 +173,6 @@ func (r *Renderer) advanceAnimations(now time.Time) bool {
 	if changed && r.frame != nil {
 		r.invalidate(r.frame.Bounds())
 	}
-	return active
 }
 
 func (r *Renderer) animationChanged(moved bool) {
@@ -205,6 +201,23 @@ func nodeTransform(box *layout.Box, motion *animation) affine {
 	transform[4] += motion.position[0] - float64(box.Node.Position.X)
 	transform[5] += motion.position[1] - float64(box.Node.Position.Y)
 	return transform
+}
+
+func isTranslation(transform affine) bool {
+	return transform[0] == 1 && transform[1] == 0 && transform[2] == 0 && transform[3] == 1
+}
+
+func translatedBox(box *layout.Box, x, y float64) layout.Box {
+	moved := *box
+	moved.Geometry.X += x
+	moved.Geometry.Y += y
+	moved.Pixels = image.Rect(
+		int(math.Round(moved.Geometry.X)),
+		int(math.Round(moved.Geometry.Y)),
+		int(math.Round(moved.Geometry.X+moved.Geometry.Width)),
+		int(math.Round(moved.Geometry.Y+moved.Geometry.Height)),
+	)
+	return moved
 }
 
 func multiply(outer, inner affine) affine {

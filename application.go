@@ -14,6 +14,7 @@ type Application struct {
 	document *ui.Document
 	renderer *software.Renderer
 	page     *Page
+	window   window.Presenter
 	run      bool
 }
 
@@ -39,6 +40,40 @@ func (app *Application) Page() *Page {
 	return app.page
 }
 
+func (app *Application) windowControls() (window.Presenter, error) {
+	if app == nil || app.window == nil {
+		return nil, errors.New("window is not running")
+	}
+	return app.window, nil
+}
+
+// MinimizeWindow 最小化当前桌面窗口。
+func (app *Application) MinimizeWindow() error {
+	controls, err := app.windowControls()
+	if err != nil {
+		return err
+	}
+	return controls.Minimize()
+}
+
+// ToggleMaximizeWindow 在最大化与还原之间切换；窗口需要允许缩放。
+func (app *Application) ToggleMaximizeWindow() error {
+	controls, err := app.windowControls()
+	if err != nil {
+		return err
+	}
+	return controls.ToggleMaximize()
+}
+
+// CloseWindow 请求正常关闭当前桌面窗口。
+func (app *Application) CloseWindow() error {
+	controls, err := app.windowControls()
+	if err != nil {
+		return err
+	}
+	return controls.Close()
+}
+
 // Run 按 config.xml 中的窗口设置启动应用。
 func (app *Application) Run() error {
 	if app == nil || app.renderer == nil || app.document == nil {
@@ -57,11 +92,18 @@ func (app *Application) Run() error {
 	if settings.Backend != "desktop" {
 		return fmt.Errorf("unsupported backend %q", settings.Backend)
 	}
-	return window.New(window.Options{
+	presenter := window.New(window.Options{
 		Title:      app.document.AppName,
 		Display:    settings.Display,
 		Width:      settings.Width,
 		Height:     settings.Height,
 		Fullscreen: settings.Fullscreen,
-	}).Run(app.renderer, nil)
+		Decorated:  settings.Decorated,
+		Resizable:  settings.Resizable,
+		MinWidth:   settings.MinWidth,
+		MinHeight:  settings.MinHeight,
+	})
+	app.window = presenter
+	defer func() { app.window = nil }()
+	return presenter.Run(app.renderer, nil)
 }

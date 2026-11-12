@@ -85,9 +85,16 @@ type Block struct {
 	id   string
 }
 
+func (b *Block) target() (pageControls, error) {
+	if b == nil {
+		return nil, errors.New("component is not connected to an open application")
+	}
+	return b.page.target()
+}
+
 // SetColor 修改当前组件的填充色。
 func (b *Block) SetColor(value color.NRGBA) error {
-	target, err := b.page.target()
+	target, err := b.target()
 	if err != nil {
 		return err
 	}
@@ -96,7 +103,7 @@ func (b *Block) SetColor(value color.NRGBA) error {
 
 // SetVisible 显示或隐藏当前组件及其子节点。
 func (b *Block) SetVisible(visible bool) error {
-	target, err := b.page.target()
+	target, err := b.target()
 	if err != nil {
 		return err
 	}
@@ -105,7 +112,7 @@ func (b *Block) SetVisible(visible bool) error {
 
 // MoveTo 在指定时长内移动到父组件坐标中的目标位置；时长为 0 时立即移动。
 func (b *Block) MoveTo(x, y int, duration time.Duration) error {
-	target, err := b.page.target()
+	target, err := b.target()
 	if err != nil {
 		return err
 	}
@@ -114,7 +121,7 @@ func (b *Block) MoveTo(x, y int, duration time.Duration) error {
 
 // RotateTo 在指定时长内绕当前组件的 pivot 顺时针旋转到目标角度。
 func (b *Block) RotateTo(degrees float64, duration time.Duration) error {
-	target, err := b.page.target()
+	target, err := b.target()
 	if err != nil {
 		return err
 	}
@@ -123,7 +130,7 @@ func (b *Block) RotateTo(degrees float64, duration time.Duration) error {
 
 // ScaleTo 在指定时长内围绕当前组件的 pivot 缩放，1 表示原始大小。
 func (b *Block) ScaleTo(x, y float64, duration time.Duration) error {
-	target, err := b.page.target()
+	target, err := b.target()
 	if err != nil {
 		return err
 	}
@@ -135,7 +142,7 @@ type Text struct{ Block }
 
 // SetText 修改文本内容。
 func (t *Text) SetText(value string) error {
-	target, err := t.page.target()
+	target, err := t.target()
 	if err != nil {
 		return err
 	}
@@ -144,7 +151,7 @@ func (t *Text) SetText(value string) error {
 
 // SetTextColor 修改文字颜色。
 func (t *Text) SetTextColor(value color.NRGBA) error {
-	target, err := t.page.target()
+	target, err := t.target()
 	if err != nil {
 		return err
 	}
@@ -162,7 +169,7 @@ type ButtonEventHandler func(*Page) error
 
 // SetDisabled 设置按钮是否响应点击。
 func (b *Button) SetDisabled(disabled bool) error {
-	target, err := b.page.target()
+	target, err := b.target()
 	if err != nil {
 		return err
 	}
@@ -173,7 +180,7 @@ func (b *Button) on(event ui.ButtonEvent, callback ButtonEventHandler) error {
 	if callback == nil {
 		return errors.New("button event callback is required")
 	}
-	target, err := b.page.target()
+	target, err := b.target()
 	if err != nil {
 		return err
 	}
