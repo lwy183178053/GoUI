@@ -1,13 +1,17 @@
-//go:build !windows
+//go:build !windows && !linux
 
 package window
 
 import (
 	"errors"
 
-	"goui/internal/backend"
+	"github.com/lwy183178053/GoUI/internal/backend"
 )
 
-func (p *presenter) Run(backend.FrameSource) error {
-	return errors.New("the preview window is supported on Windows only; XML, layout and software rendering are platform-independent")
+func Displays() ([]Display, error) {
+	return nil, errors.New("desktop display enumeration is supported on Windows and Linux only")
+}
+
+func (p *presenter) Run(backend.FrameSource, func() error) error {
+	return errors.New("desktop windows are supported on Windows and Linux only")
 }

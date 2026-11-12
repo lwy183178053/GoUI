@@ -5,7 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"io"
-	"os"
+	"io/fs"
 	"strings"
 )
 
@@ -18,10 +18,10 @@ type element struct {
 	source   Source
 }
 
-func readXML(path string) (*element, error) {
-	data, err := os.ReadFile(path)
+func readXML(fsys fs.FS, path, sourceName string) (*element, error) {
+	data, err := fs.ReadFile(fsys, path)
 	if err != nil {
-		return nil, at(Source{path, 1, 1}, "read XML: %w", err)
+		return nil, at(Source{sourceName, 1, 1}, "read XML: %w", err)
 	}
 	data = bytes.TrimPrefix(data, []byte{0xef, 0xbb, 0xbf})
 	decoder := xml.NewDecoder(bytes.NewReader(data))
@@ -29,7 +29,7 @@ func readXML(path string) (*element, error) {
 	var stack []*element
 	for {
 		line, column := decoder.InputPos()
-		source := Source{path, line, column}
+		source := Source{sourceName, line, column}
 		token, err := decoder.Token()
 		if err == io.EOF {
 			break
@@ -40,7 +40,7 @@ func readXML(path string) (*element, error) {
 			if errors.As(err, &syntax) {
 				line = syntax.Line
 			}
-			return nil, at(Source{path, line, column}, "invalid XML: %w", err)
+			return nil, at(Source{sourceName, line, column}, "invalid XML: %w", err)
 		}
 		switch token := token.(type) {
 		case xml.StartElement:
@@ -86,7 +86,7 @@ func readXML(path string) (*element, error) {
 		}
 	}
 	if root == nil {
-		return nil, at(Source{path, 1, 1}, "XML has no root element")
+		return nil, at(Source{sourceName, 1, 1}, "XML has no root element")
 	}
 	if len(stack) != 0 {
 		return nil, at(stack[len(stack)-1].source, "unclosed element")

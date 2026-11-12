@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="GoUI XML 使用教程：UI 目录、字体配置、组件复用、Block 布局与按钮交互。">
+  <meta name="description" content="GoUI XML 使用教程：UI 目录、字体配置、组件复用、Block 布局、按钮事件与动画。">
   <title>GoUI XML 标签使用教程</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -57,6 +57,7 @@
         <summary>其它</summary>
         <div class="nav-group-links">
           <a href="#tree">子节点与层级</a>
+          <a href="#animation">Block 动画方法</a>
           <a href="#pixels">小数坐标与像素取整</a>
           <a href="#dirty">Block 与脏区重绘</a>
           <a href="#font-files">字体文件怎么选</a>
@@ -74,7 +75,7 @@
         <div class="eyebrow">GoUI / XML UI Guide</div>
         <h1><span class="hero-title-line">GoUI XML</span> <span class="hero-title-line">标签使用教程</span></h1>
         <p class="hero-lede">用 Block 描述界面，用 <code>anchor</code>、<code>pivot</code>、<code>position</code> 和 <code>size</code> 布局；当 <code>size</code> 使用 <code>-1</code> 时，再用 <code>margin</code> 控制边距。Text、Image、Button 共享 Block 的基础属性，只增加各自必需的能力。</p>
-        <div class="hero-meta"><span class="tag primary">标签规范 0.1</span><span class="tag">纯 Go</span><span class="tag">DRM/KMS</span><span class="tag">Block 布局</span></div>
+        <div class="hero-meta"><span class="tag primary">标签规范 0.1</span><span class="tag">纯 Go</span><span class="tag">桌面窗口</span><span class="tag">Block 布局</span></div>
       </div>
     </header>
 
@@ -82,7 +83,7 @@
       <section class="doc-section" id="intro">
         <div class="section-kicker">01 / GoUI XML</div>
         <h2>开始使用</h2>
-        <p class="lead">先准备一个 UI 目录，在 <code>config.xml</code> 中登记字体，在 <code>main.xml</code> 中描述界面。预览版支持 <code>block</code>、<code>text</code>、<code>image</code>、<code>button</code> 和透明展开的 <code>component</code>；布局、XML 解析和软件绘制都由平台无关的 Go 代码完成。</p>
+        <p class="lead">用户项目自己编写 Go 入口；调用 <code>goui.Open</code> 加载 UI 目录，使用类型化组件绑定事件，再调用 <code>Run</code> 启动。UI 目录包含 <code>config.xml</code>、<code>main.xml</code> 和所有字体、图片与组件资源。</p>
         <div class="two-col">
           <div class="mini-panel">
             <h3>定位一个节点</h3>
@@ -95,11 +96,14 @@
         </div>
         <h3>最小 config.xml</h3>
         <pre><code class="language-xml" data-example="quick-config">&lt;config&gt;
+  &lt;app name="GoUI Demo" version="1.0.0" /&gt;
+  &lt;window backend="desktop" display="0"
+    width="960" height="640" fullscreen="false" /&gt;
   &lt;fonts&gt;
     &lt;font name="default" src="fonts/AlibabaPuHuiTi-3-55-Regular.ttf" /&gt;
   &lt;/fonts&gt;
 &lt;/config&gt;</code></pre>
-        <p>将对应的 TTF 文件放入 UI 目录的 <code>fonts/</code> 中。这里的 <code>default</code> 是注册名称，后面的 Text 省略 <code>font</code> 时就使用它。</p>
+        <p>将对应的 TTF 文件放入 UI 目录的 <code>fonts/</code> 中。<code>default</code> 是注册名称，Text 省略 <code>font</code> 时就使用它。<code>app</code> 可省略；应用名作为窗口标题，版本仅保留为应用元数据。<code>window</code> 可省略，默认使用主显示器上的 960×640 桌面窗口。尺寸以设备独立像素计，高 DPI 缩放时可能不同于面板物理像素。</p>
         <h3>最小 main.xml</h3>
         <pre><code class="language-xml" data-example="quick-main">&lt;ui color="#0D1117"&gt;
   &lt;text
@@ -111,29 +115,57 @@
     text-color="#F4F7F7"
     font-size="24"&gt;GoUI&lt;/text&gt;
 &lt;/ui&gt;</code></pre>
-        <p class="small">坐标使用渲染目标的像素，父节点左上角为原点，X 向右、Y 向下。根 <code>ui</code> 的矩形就是当前 DRM/KMS 输出区域。</p>
+        <p class="small">坐标使用渲染目标的设备独立像素，父节点左上角为原点，X 向右、Y 向下。桌面模式下，根 <code>ui</code> 的矩形就是窗口客户区；全屏时对应所选显示器。高 DPI 缩放时，逻辑尺寸可能不同于面板物理像素。DRM 输出尚未实现。</p>
+        <h3>Go 入口与按钮事件</h3>
+        <pre><code class="language-go">package main
+
+import (
+  "log"
+  goui "github.com/lwy183178053/GoUI"
+)
+
+func main() {
+  app, err := goui.Open("./ui")
+  if err != nil { log.Fatal(err) }
+
+  page := app.Page()
+  status, err := page.GetText("status")
+  if err != nil { log.Fatal(err) }
+  button, err := page.GetButton("run")
+  if err != nil { log.Fatal(err) }
+  if err := button.OnClick(func(page *goui.Page) error {
+    return status.SetText("按钮已执行")
+  }); err != nil { log.Fatal(err) }
+
+  if err := app.Run(); err != nil { log.Fatal(err) }
+}</code></pre>
+        <p>按钮点击函数直接在 Go 代码中注册。XML 只负责组件和外观，不用写 action 名称、函数标记或生成步骤。</p>
       </section>
 
       <section class="doc-section" id="project-files">
         <div class="section-kicker">02 / GoUI XML</div>
         <h2>UI 目录与文件加载</h2>
-        <p class="lead">启动时指定 UI 目录，加载器自动读取其中的 <code>config.xml</code> 和 <code>main.xml</code>。其它 XML 按组件引用加载，资源可以按用途分目录存放。</p>
-        <pre><code class="language-text">ui/
-  main.xml
-  config.xml
-  components/
-    display-card.xml
-    parts/
-      connection.xml
-  fonts/
-    AlibabaPuHuiTi-3-55-Regular.ttf
-    AlibabaPuHuiTi-3-75-SemiBold.ttf
-  assets/
-    board.png</code></pre>
+        <p class="lead">用户项目自己管理 Go 源码和资源。启动时传给 <code>goui.Open</code> 的目录就是 UI 目录；发布应用时，exe 与该目录一起部署。</p>
+        <pre><code class="language-text">MyApp/
+  go.mod
+  main.go
+  ui/
+    config.xml
+    main.xml
+    component/
+      display-card.xml
+      parts/
+        connection.xml
+    fonts/
+      AlibabaPuHuiTi-3-55-Regular.ttf
+      AlibabaPuHuiTi-3-75-SemiBold.ttf
+    assets/
+      board.png</code></pre>
         <ul class="rule-list">
           <li><code>config.xml</code> 和 <code>main.xml</code> 都是必需文件；前者以 <code>&lt;config&gt;</code> 为根，后者以 <code>&lt;ui&gt;</code> 为根。</li>
           <li>先读取配置并注册字体，再读取主界面、展开组件并检查最终节点树。没有被引用的组件文件不加载。</li>
-          <li>路径使用正斜杠，可使用 <code>../</code> 访问上级目录，但解析后的路径必须留在指定的 UI 目录内。</li>
+          <li>Go 源码由用户项目自己的 <code>go.mod</code> 编译；框架不生成入口、不扫描源码，也不将 UI 资源打进 exe。</li>
+          <li>路径使用正斜杠，字体和图片相对 UI 目录；组件路径相对写下引用的 XML 文件。资源路径必须留在指定 UI 目录内。</li>
         </ul>
         <div class="table-wrap">
           <table>
@@ -150,9 +182,12 @@
 
       <section class="doc-section" id="font-config">
         <div class="section-kicker">03 / GoUI XML</div>
-        <h2><code>config</code>、<code>fonts</code> 与 <code>font</code></h2>
-        <p class="lead">字体统一在 <code>config.xml</code> 中登记。<code>fonts</code> 保存字体列表，每个 <code>font</code> 把一个名称映射到 UI 目录中的 TTF 文件；Text 按名称选择字体。</p>
+        <h2><code>config</code>、<code>window</code> 与字体</h2>
+        <p class="lead">应用名称、窗口后端和桌面显示设置，以及字体注册表，都在 <code>config.xml</code> 中配置。<code>window</code> 是可选项；<code>fonts</code> 与 <code>default</code> 字体必需。</p>
         <pre><code class="language-xml" data-example="font-config">&lt;config&gt;
+  &lt;app name="GoUI Demo" version="1.0.0" /&gt;
+  &lt;window backend="desktop" display="0"
+    width="960" height="640" fullscreen="false" /&gt;
   &lt;fonts&gt;
     &lt;font name="default"
       src="fonts/AlibabaPuHuiTi-3-55-Regular.ttf" /&gt;
@@ -165,6 +200,11 @@
             <thead><tr><th>标签 / 属性</th><th>写法</th><th>说明</th></tr></thead>
             <tbody>
               <tr><td>config</td><td>配置文件根标签</td><td>整个 UI 目录使用这份配置。</td></tr>
+              <tr><td>app</td><td><code>name</code>、<code>version</code></td><td>应用名称用于窗口标题；版本作为应用元数据，不写入 exe 文件属性。</td></tr>
+              <tr><td>window.backend</td><td><code>desktop</code> 或 <code>drm</code></td><td>默认 <code>desktop</code>；当前 <code>drm</code> 仅保留配置识别，启动时会报告尚未实现。</td></tr>
+              <tr><td>window.display</td><td>从 0 开始的整数</td><td>选择桌面显示器；0 是系统主显示器。可通过 <code>goui.Displays()</code> 查询数量、名称和逻辑尺寸。</td></tr>
+              <tr><td>window.width / height</td><td>正整数设备独立像素</td><td>默认 960×640；窗口模式使用该客户区尺寸，全屏模式使用所选显示器报告的尺寸。</td></tr>
+              <tr><td>window.fullscreen</td><td><code>true</code> / <code>false</code></td><td>默认 <code>false</code>，桌面后端使用普通窗口。</td></tr>
               <tr><td>fonts</td><td>包含多个 font</td><td>字体注册表，至少登记一个名为 <code>default</code> 的字体。</td></tr>
               <tr><td>font.name</td><td>非空字符串，必需</td><td>供 <code>text font="名称"</code> 引用；同一注册表中的名称不能重复。</td></tr>
               <tr><td>font.src</td><td>TTF 文件路径，必需</td><td>相对于 UI 目录，字体随应用资源提供。</td></tr>
@@ -173,7 +213,7 @@
         </div>
         <p>上例中，正文省略 <code>font</code> 即使用 Regular；需要较粗的标题时，显式选择 <code>semibold</code>。需要几种字重，就登记对应的几个文件。</p>
         <pre><code class="language-xml" data-example="font-choice">&lt;text size="320,40" font="semibold" font-size="24"&gt;显示设备&lt;/text&gt;</code></pre>
-        <p>缺少 <code>default</code>、字体重名、文件不存在或无法解析，以及 Text 引用未注册字体时，加载失败。字体直接从 UI 目录读取，目标 Linux 的系统字体不参与查找。</p>
+        <p>缺少 <code>default</code>、字体重名、文件不存在或无法解析，以及 Text 引用未注册字体时，加载失败。字体直接从 UI 目录读取，目标 Linux 的系统字体不参与查找。首版桌面窗口支持 Windows 和 Linux；DRM/KMS 输出尚未实现。</p>
       </section>
 
       <section class="doc-section" id="common">
@@ -299,7 +339,7 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
             </tbody>
           </table>
         </div>
-        <pre><code class="language-xml" data-example="ui-root">&lt;ui id="drm-monitor" color="#0D1117"&gt;
+        <pre><code class="language-xml" data-example="ui-root">&lt;ui id="preview-root" color="#0D1117"&gt;
   &lt;block size="-1,-1" margin="24,24,24,24" /&gt;
 &lt;/ui&gt;</code></pre>
         <p><code>ui</code> 的尺寸来自渲染目标，子节点用锚点或填充规则适配尺寸变化。字体等运行配置统一放在 <code>config.xml</code> 中。</p>
@@ -332,6 +372,7 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
           </table>
         </div>
         <p>Block 的子节点坐标相对于该 Block 的左上角。父 Block 只负责提供坐标空间和绘制顺序，不会因为子节点数量改变自己的大小。</p>
+        <p>Block 的 Go 类型还提供 <code>MoveTo</code>、<code>RotateTo</code> 和 <code>ScaleTo</code>。Text、Image、Button 都嵌入 Block，因此这些组件也能直接使用动画方法。</p>
         <div class="callout warn"><strong>不要把 block 当成自动布局容器。</strong>如果两个子节点要上下排列，就直接给它们不同的 <code>position</code>；如果要横向排列，也直接写各自的 X 偏移。</div>
       </section>
 
@@ -358,7 +399,7 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
   align="left" valign="middle"&gt;FPS 60&lt;/text&gt;</code></pre>
         <h3>自动换行的说明文字</h3>
         <pre><code class="language-xml" data-example="text-wrapping">&lt;text position="16,56" size="320,96"
-  wrap="true" valign="top" font-size="16"&gt;显示连接状态、当前分辨率和 DRM page flip 的测试结果。文字会根据当前宽度自动换行。&lt;/text&gt;</code></pre>
+  wrap="true" valign="top" font-size="16"&gt;显示当前页面状态和界面更新结果。文字会根据当前宽度自动换行。&lt;/text&gt;</code></pre>
         <p>开启 <code>wrap</code> 后，中文可以逐字折行，英文优先按空格保留单词；单个单词超过整行宽度时再拆分。行高由字体度量决定，超出当前 Text 矩形的文字裁掉，节点高度仍由 <code>size</code> 决定。</p>
         <p>单行模式同样在自身矩形内显示。文本中的 <code>&amp;lt;</code>、<code>&amp;amp;</code> 等 XML 实体在显示前还原。Text 只能放文字内容。</p>
       </section>
@@ -390,32 +431,52 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
       <section class="doc-section" id="button">
         <div class="section-kicker">14 / GoUI XML</div>
         <h2><code>button</code> 标签</h2>
-        <p class="lead"><code>button</code> 是接收点击的 Block，只增加点击命令和禁用状态。布局、颜色和圆角使用通用属性，文字与图片写成它的子节点。</p>
+        <p class="lead"><code>button</code> 是可接收鼠标事件的 Block，只增加禁用状态。用户在 Go 入口中通过 <code>GetButton</code> 注册事件；XML 只描述按钮本身和外观。</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>属性</th><th>类型 / 默认值</th><th>说明</th></tr></thead>
             <tbody>
-              <tr><td>on-click</td><td>命令名，可选</td><td>点击成功后执行已注册的命令，例如 <code>drm.start</code>。</td></tr>
-              <tr><td>disabled</td><td>true / false，默认 false</td><td>为 <code>true</code> 时不执行点击命令，但仍挡住下方的按钮；外观由自身属性与子节点决定。</td></tr>
+              <tr><td>disabled</td><td>true / false，默认 false</td><td>为 <code>true</code> 时不接收鼠标回调，但仍挡住下方的按钮；外观由自身属性与子节点决定。</td></tr>
             </tbody>
           </table>
         </div>
         <pre><code class="language-xml" data-example="start-button">&lt;button id="start-button" position="24,300" size="180,48"
-  color="#B4473B" radius="6" on-click="drm.start"&gt;
+  color="#B4473B" radius="6"&gt;
   &lt;text size="-1,-1" text-color="#FFFFFF" font-size="16"
-    align="center" valign="middle"&gt;Start DRM&lt;/text&gt;
+    align="center" valign="middle"&gt;运行命令&lt;/text&gt;
 &lt;/button&gt;</code></pre>
-        <p>只有 <code>button</code> 可以声明 <code>on-click</code>；写在 <code>block</code>、<code>text</code>、<code>image</code> 等其它标签上属于加载错误。命令名由 Go 代码注册，XML 中填写名称。预览窗口把鼠标左键按下和释放转换成按钮命中事件。</p>
-        <pre><code class="language-go">err := renderer.RegisterAction("drm.start", func() error {
-  // 在这里调用应用自己的 Go 逻辑，也可以更新有 ID 的 UI 节点。
-  return renderer.SetText("status", "命令已执行")
+        <p>若在 XML 中写旧的 <code>on-click</code> 属性，加载器会将其作为未知属性报错。用户项目在启动前检查组件 ID 和类型，绑定失败时直接返回错误。</p>
+        <pre><code class="language-go">button, err := page.GetButton("start-button")
+if err != nil { return err }
+if err := button.OnClick(func(page *goui.Page) error {
+  status, err := page.GetText("status")
+  if err != nil { return err }
+  return status.SetText("命令已执行")
+}); err != nil {
+  return err
+}</code></pre>
+        <h3>鼠标事件</h3>
+        <p>Button 可分别注册 <code>OnMouseEnter</code>、<code>OnMouseLeave</code>、<code>OnMouseDown</code>、<code>OnMouseUp</code> 和 <code>OnClick</code>。每种事件在同一按钮上只能注册一次；每个回调都接收当前 <code>*goui.Page</code> 并返回 <code>error</code>。</p>
+        <pre><code class="language-go">button, err := page.GetButton("start-button")
+if err != nil { return err }
+
+if err := button.OnMouseEnter(func(*goui.Page) error {
+  return button.SetColor(color.NRGBA{R: 210, G: 90, B: 70, A: 255})
+}); err != nil { return err }
+if err := button.OnMouseLeave(func(*goui.Page) error {
+  return button.SetColor(color.NRGBA{R: 180, G: 70, B: 60, A: 255})
+}); err != nil { return err }
+return button.OnClick(func(*goui.Page) error {
+  return status.SetText("命令已执行")
 })</code></pre>
+        <p><code>OnMouseEnter</code> 和 <code>OnMouseLeave</code> 在鼠标目标变化时触发；<code>OnMouseDown</code> 在左键于按钮上按下时触发；<code>OnMouseUp</code> 在左键释放且指针位于按钮上时触发。<code>OnClick</code> 只在按下和释放命中同一个按钮时触发。</p>
         <h3>点击与重叠规则</h3>
         <ol class="rule-list">
           <li>从绘制顺序的最上层向下，只检查可见的 Button。点击位置内的第一个按钮就是此次目标；Block、Text、Image 即使完全盖住它，也不会挡住命中。</li>
           <li>Button 的完整矩形参与命中，包括圆角外的矩形边角。普通文字或图标覆盖按钮时，仍可点击按钮。</li>
-          <li>按下时记录目标；释放时重新查找当前位置最上层的按钮。两次是同一个按钮且按钮可用时，才执行一次 <code>on-click</code>。移出后释放、隐藏或禁用按钮都会取消本次点击。</li>
-          <li>最上层按钮禁用时，本次点击被挡住，下层按钮也不执行。设为 <code>visible="false"</code> 的节点及子树不参与命中。</li>
+          <li>按下时记录目标；释放时按当前位置重新查找最上层按钮。释放在另一个按钮上或按钮外时，不触发原按钮的 Click；MouseUp 则发给释放位置上的可用按钮。</li>
+          <li>最上层按钮禁用时，它不接收事件且会挡住下层按钮。设为 <code>visible="false"</code> 的节点及子树不参与命中。</li>
+          <li>父节点旋转或缩放后，按钮命中会使用同一个屏幕变换；命中区域仍是变换后的矩形。</li>
         </ol>
       </section>
 
@@ -454,7 +515,7 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
   &lt;text id="state" position="20,62" size="400,28"
     text-color="#B6D8D3"&gt;Connected&lt;/text&gt;
   &lt;text id="detail" position="20,100" size="400,28"
-    text-color="#A8B3B5"&gt;HDMI-A-1 / 1920 × 1080&lt;/text&gt;
+    text-color="#A8B3B5"&gt;Desktop display / 1920 × 1080&lt;/text&gt;
 &lt;/component&gt;</code></pre>
         <p>组件文件的根 <code>&lt;component&gt;</code> 是透明包装，可以放多个子标签；上面的嵌套组件就直接提供两个 Text。引用处的 <code>&lt;component src="…" name="…" /&gt;</code> 和文件外层包装都会移除，子节点直接插入引用位置，保留原来的顺序。</p>
         <p>组件引用使用 <code>src</code>、<code>name</code> 两个属性，以空标签书写。<code>src</code> 相对于当前 XML 文件解析，且不能越出 UI 目录。组件文件只定义这一份组件；需要嵌套时继续引用其它文件。循环引用会报错。</p>
@@ -491,13 +552,40 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
   color="#17212B" radius="12"&gt;
   &lt;text position="16,16" size="388,32" font-size="20"&gt;Display 0&lt;/text&gt;
   &lt;text position="16,60" size="388,28"
-    text-color="#B6D8D3"&gt;connected / 1920x1080&lt;/text&gt;
+    text-color="#B6D8D3"&gt;desktop window / 960x640&lt;/text&gt;
 &lt;/block&gt;</code></pre>
         <p>第二个 Text 的 <code>position="16,60"</code> 相对父卡片计算。移动卡片时，其子树一起移动；子节点数量不会改变父节点尺寸。</p>
       </section>
 
+      <section class="doc-section" id="animation">
+        <div class="section-kicker">17 / Go API</div>
+        <h2>Block 动画方法</h2>
+        <p class="lead">动画由 Go 代码启动，不在 XML 中另加动画标签或属性。每个方法填写目标值和持续时间，使用线性插值；持续时间为 0 时立即生效，负数会返回错误。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>方法</th><th>目标值</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td><code>MoveTo(x, y, duration)</code></td><td>父节点坐标中的 position</td><td>从当前位置移动到目标偏移；目标坐标为整数像素。</td></tr>
+              <tr><td><code>RotateTo(degrees, duration)</code></td><td>角度</td><td>绕当前节点的 <code>pivot</code> 顺时针旋转；屏幕坐标中正角度向右转。</td></tr>
+              <tr><td><code>ScaleTo(x, y, duration)</code></td><td>X、Y 缩放倍数</td><td>绕 <code>pivot</code> 缩放；<code>1</code> 表示原始大小，数值必须大于 0。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>参数中的 <code>duration</code> 使用 Go 的 <code>time.Duration</code>，例如 <code>300*time.Millisecond</code> 或 <code>time.Second</code>。再次调用同一方法会从当前动画位置继续；移动、旋转和缩放可以同时进行。父节点的旋转和缩放会作用于整个子树。回调返回的错误会传回窗口循环并结束 <code>Run</code>。</p>
+        <pre><code class="language-go">import "time"
+
+target, err := page.GetBlock("motion-target")
+if err != nil { return err }
+
+duration := 500 * time.Millisecond
+if err := target.MoveTo(120, 40, duration); err != nil { return err }
+if err := target.RotateTo(90, duration); err != nil { return err }
+return target.ScaleTo(1.5, 1.5, duration)</code></pre>
+        <p>动画期间渲染器逐帧更新位置和变换，结束后继续使用静态帧缓存。旋转和缩放后的按钮仍按屏幕上的实际变换区域命中；命中区域本身仍是按钮矩形，不会被 <code>radius</code> 裁成圆角。</p>
+      </section>
+
       <section class="doc-section" id="pixels">
-        <div class="section-kicker">17 / GoUI XML</div>
+        <div class="section-kicker">18 / GoUI XML</div>
         <h2>小数坐标与像素取整</h2>
         <p class="lead">XML 中的像素位置、固定尺寸和边距填写整数，但锚点乘上父尺寸时，布局中间结果可能带小数。这是几何坐标，最后需要对应到实际像素网格。</p>
         <h3>为什么会算出 280.5</h3>
@@ -510,19 +598,26 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
       </section>
 
       <section class="doc-section" id="dirty">
-        <div class="section-kicker">18 / GoUI XML</div>
+        <div class="section-kicker">19 / GoUI XML</div>
         <h2>Block 与局部脏区重绘</h2>
-        <p class="lead">所有可视节点共享 Block 的矩形和层级，因此状态变化可以标记对应节点需要重绘。XML 不需要增加脏标记标签或属性。预览版提供按 ID 更新文字、颜色、可见状态和按钮禁用状态的接口。</p>
-        <pre><code class="language-go">renderer.SetText("status", "DRM connected")
-renderer.SetColor("status-panel", color.NRGBA{R: 32, G: 46, B: 46, A: 255})
-renderer.SetVisible("warning", false)
-renderer.SetDisabled("start-button", true)</code></pre>
-        <p>这些更新会使相关矩形进入脏区。下一次请求帧时，渲染器清理并重画脏区内的背景和相交节点，返回新帧给窗口后端；未改变的部分沿用上一帧。调整窗口尺寸时会重新计算整棵树并完整绘制。查找使用展开后的 ID，例如 <code>left.status.value</code>。</p>
+        <p class="lead">所有可视节点共享 Block 的矩形和层级，因此状态变化可以标记对应节点需要重绘。XML 不需要增加脏标记标签或属性。Go API 可更新文字、颜色和可见状态，也可以启动位置、旋转和缩放动画。</p>
+        <pre><code class="language-go">status, err := page.GetText("status")
+if err != nil { return err }
+if err := status.SetText("Display connected"); err != nil { return err }
+
+panel, err := page.GetBlock("status-panel")
+if err != nil { return err }
+if err := panel.SetColor(color.NRGBA{R: 32, G: 46, B: 46, A: 255}); err != nil { return err }
+
+button, err := page.GetButton("start-button")
+if err != nil { return err }
+return button.SetDisabled(true)</code></pre>
+        <p>静态状态更新会使相关矩形进入脏区。下一次请求帧时，渲染器重画脏区内的背景和相交节点，未改变的部分沿用上一帧。动画运行时会重绘当前帧；移动动画重新计算布局，旋转和缩放会重绘受变换影响的画面。调整窗口尺寸时会重新计算整棵树。查找使用展开后的 ID，例如 <code>left.status.value</code>。</p>
         <div class="callout"><strong>变化范围。</strong>隐藏或显示分组时，脏区覆盖节点及子树的范围；子节点可以超出父矩形，因此这些越界区域也会被重画。当前更新接口不修改节点位置和尺寸。</div>
       </section>
 
       <section class="doc-section" id="font-files">
-        <div class="section-kicker">19 / GoUI XML</div>
+        <div class="section-kicker">20 / GoUI XML</div>
         <h2>字体文件怎么选</h2>
         <p class="lead">你下载的阿里巴巴普惠体 3.0 按字重分目录，每个目录中又提供多种格式。同一个字重使用一种合适的字体文件即可；本教程的字体注册使用 TTF。</p>
         <h3>同一个字重为什么有五种文件</h3>
@@ -555,10 +650,10 @@ renderer.SetDisabled("start-button", true)</code></pre>
       </section>
 
       <section class="doc-section" id="complete">
-        <div class="section-kicker">20 / GoUI XML</div>
-        <h2>完整的 DRM 监视页面</h2>
-        <p class="lead">下面的 <code>main.xml</code> 组合了全屏底色、顶部状态条、信息卡片和按钮。UI 目录同时准备快速开始中的 <code>config.xml</code> 与默认字体；所有 Text 使用已注册的 <code>default</code>。</p>
-        <pre><code class="language-xml">&lt;ui id="drm-monitor" color="#0D1117"&gt;
+        <div class="section-kicker">21 / GoUI XML</div>
+        <h2>完整桌面预览页面</h2>
+        <p class="lead">下面的 <code>main.xml</code> 组合了页面底色、顶部状态条、信息区和按钮。用户项目在 Go 入口中通过类型化 Getter 绑定按钮行为；UI 目录同时提供配置、默认字体和其它资源。</p>
+        <pre><code class="language-xml">&lt;ui id="preview-root" color="#0D1117"&gt;
   &lt;block
     id="topbar"
     anchor="0,0"
@@ -574,7 +669,7 @@ renderer.SetDisabled("start-button", true)</code></pre>
       size="300,56"
       font-size="18"
       text-color="#F4F7F7"
-      valign="middle"&gt;GoUI DRM Monitor&lt;/text&gt;
+      valign="middle"&gt;GoUI Desktop Preview&lt;/text&gt;
     &lt;text
       id="connection-state"
       anchor="1,0.5"
@@ -583,7 +678,7 @@ renderer.SetDisabled("start-button", true)</code></pre>
       size="240,32"
       text-color="#83C5B8"
       align="right"
-      valign="middle"&gt;DRM connected&lt;/text&gt;
+      valign="middle"&gt;Desktop window ready&lt;/text&gt;
   &lt;/block&gt;
 
   &lt;block
@@ -597,28 +692,27 @@ renderer.SetDisabled("start-button", true)</code></pre>
     &lt;text anchor="0,0" pivot="0,0" position="20,18" size="380,32"
       font-size="20"&gt;Display 0&lt;/text&gt;
     &lt;text anchor="0,0" pivot="0,0" position="20,62" size="400,28"
-      text-color="#A8B3B5"&gt;Connector: HDMI-A-1&lt;/text&gt;
+      text-color="#A8B3B5"&gt;Selected display: 0&lt;/text&gt;
     &lt;text anchor="0,0" pivot="0,0" position="20,96" size="400,28"
-      text-color="#A8B3B5"&gt;Mode: 1920 x 1080 @ 60 Hz&lt;/text&gt;
+      text-color="#A8B3B5"&gt;Window size: 960 x 640&lt;/text&gt;
     &lt;text anchor="0,0" pivot="0,0" position="20,130" size="400,28"
-      text-color="#83C5B8"&gt;CRTC: active&lt;/text&gt;
+      text-color="#83C5B8"&gt;Renderer: active&lt;/text&gt;
   &lt;/block&gt;
 
   &lt;button
-    id="test-page-flip"
+    id="update-status"
     anchor="0,0"
     pivot="0,0"
     position="24,300"
     size="196,48"
     color="#B4473B"
-    radius="6"
-    on-click="drm.test-page-flip"&gt;
+    radius="6"&gt;
     &lt;text
       size="-1,-1"
       text-color="#FFFFFF"
       font-size="16"
       align="center"
-      valign="middle"&gt;Test page flip&lt;/text&gt;
+      valign="middle"&gt;Update status&lt;/text&gt;
   &lt;/button&gt;
 
   &lt;text
@@ -629,23 +723,23 @@ renderer.SetDisabled("start-button", true)</code></pre>
     size="-1,24"
     margin="24,0,24,0"
     font-size="12"
-    text-color="#78858A"&gt;GoUI / software renderer / DRM-KMS&lt;/text&gt;
+    text-color="#78858A"&gt;GoUI / XML + Go / software renderer&lt;/text&gt;
 &lt;/ui&gt;</code></pre>
-        <div class="callout"><strong>运行时数据更新。</strong>DRM 状态变化时，只更新对应 Text Block 的文本并标记该 Block 脏。静态背景和没有变化的卡片内容不需要重复计算布局。</div>
+        <div class="callout"><strong>运行时数据更新。</strong>状态变化时，通过 <code>Page.GetText</code> 更新对应 Text 内容；渲染器只重绘受影响的区域。当前只实现桌面窗口后端，DRM/KMS 后端尚未实现。</div>
       </section>
 
       <section class="doc-section" id="reference">
-        <div class="section-kicker">21 / GoUI XML</div>
+        <div class="section-kicker">22 / GoUI XML</div>
         <h2>标签速查</h2>
         <div class="table-wrap">
           <table>
             <thead><tr><th>标签</th><th>用途</th><th>常用属性 / 内容</th><th>子节点</th></tr></thead>
             <tbody>
               <tr><td>&lt;ui&gt;</td><td>页面根节点，覆盖渲染目标。</td><td><code>id</code>、<code>color</code></td><td>是</td></tr>
-              <tr><td>&lt;block&gt;</td><td>基础矩形、填充色、坐标空间和分组。</td><td>布局属性、通用属性（含 <code>color</code>、<code>radius</code>）</td><td>是</td></tr>
+              <tr><td>&lt;block&gt;</td><td>基础矩形、填充色、坐标空间和分组。</td><td>布局属性、通用属性；Go API 可移动、旋转、缩放</td><td>是</td></tr>
               <tr><td>&lt;text&gt;</td><td>显示单行或自动换行文字。</td><td>布局与通用属性、<code>font</code>、<code>font-size</code>、<code>text-color</code>、<code>align</code>、<code>valign</code>、<code>wrap</code></td><td>文字内容</td></tr>
               <tr><td>&lt;image&gt;</td><td>绘制图片资源。</td><td>布局与通用属性、<code>src</code>、<code>fit</code></td><td>否</td></tr>
-              <tr><td>&lt;button&gt;</td><td>可命中的交互区域，可组合子节点。</td><td>布局与通用属性、<code>on-click</code>、<code>disabled</code></td><td>是</td></tr>
+              <tr><td>&lt;button&gt;</td><td>可命中的交互区域，可组合子节点。</td><td>布局与通用属性、<code>disabled</code>；鼠标事件由 Go 代码绑定</td><td>是</td></tr>
               <tr><td>&lt;component&gt;</td><td>展开组件文件并给 ID 加点号前缀。</td><td>引用：<code>src</code>、<code>name</code>；定义：透明根包装</td><td>定义中可有多个节点；引用为空标签</td></tr>
             </tbody>
           </table>
@@ -655,7 +749,9 @@ renderer.SetDisabled("start-button", true)</code></pre>
           <table>
             <thead><tr><th>标签</th><th>用途</th><th>写法</th></tr></thead>
             <tbody>
-              <tr><td>&lt;config&gt;</td><td>config.xml 根节点。</td><td>包含 <code>fonts</code>。</td></tr>
+              <tr><td>&lt;config&gt;</td><td>config.xml 根节点。</td><td>可包含 <code>app</code>、<code>window</code>，并必须包含 <code>fonts</code>。</td></tr>
+              <tr><td>&lt;app&gt;</td><td>应用名和元数据版本。</td><td><code>name</code>、<code>version</code>；最多一个。</td></tr>
+              <tr><td>&lt;window&gt;</td><td>桌面显示设置和后端选择。</td><td><code>backend</code>、<code>display</code>、<code>width</code>、<code>height</code>、<code>fullscreen</code>。</td></tr>
               <tr><td>&lt;fonts&gt;</td><td>字体注册表。</td><td>包含多个 <code>font</code>，必须登记 <code>default</code>。</td></tr>
               <tr><td>&lt;font&gt;</td><td>为 TTF 文件注册名称。</td><td><code>name</code>、<code>src</code> 均必需。</td></tr>
             </tbody>

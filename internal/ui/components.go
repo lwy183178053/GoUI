@@ -1,16 +1,17 @@
 package ui
 
 import (
-	"path/filepath"
+	"io/fs"
+	"path"
 	"strings"
 )
 
 // expandChildren 在加载前展开组件文件，并给组件里的 ID 加实例名前缀。
-func expandChildren(children []*element, directory, namespace string, stack, names map[string]bool, uiDirectory string) ([]*element, error) {
+func expandChildren(fsys fs.FS, children []*element, xmlPath, namespace string, stack, names map[string]bool, sourceRoot string, doc *Document) ([]*element, error) {
 	var result []*element
 	for _, child := range children {
 		if child.name == "component" {
-			expanded, err := expandComponent(child, directory, namespace, stack, names, uiDirectory)
+			expanded, err := expandComponent(fsys, child, path.Dir(xmlPath), namespace, stack, names, sourceRoot, doc)
 			if err != nil {
 				return nil, err
 			}
@@ -22,7 +23,7 @@ func expandChildren(children []*element, directory, namespace string, stack, nam
 				child.attrs["id"] = namespace + "." + strings.TrimSpace(id)
 			}
 		}
-		children, err := expandChildren(child.children, directory, namespace, stack, names, uiDirectory)
+		children, err := expandChildren(fsys, child.children, xmlPath, namespace, stack, names, sourceRoot, doc)
 		if err != nil {
 			return nil, err
 		}
@@ -32,7 +33,7 @@ func expandChildren(children []*element, directory, namespace string, stack, nam
 	return result, nil
 }
 
-func expandComponent(reference *element, directory, namespace string, stack, names map[string]bool, uiDirectory string) ([]*element, error) {
+func expandComponent(fsys fs.FS, reference *element, directory, namespace string, stack, names map[string]bool, sourceRoot string, doc *Document) ([]*element, error) {
 	if err := reference.attributes("src", "name"); err != nil {
 		return nil, err
 	}
@@ -62,22 +63,18 @@ func expandComponent(reference *element, directory, namespace string, stack, nam
 	}
 	names[instance] = true
 
-	src = filepath.FromSlash(src)
-	if filepath.IsAbs(src) || filepath.VolumeName(src) != "" || strings.HasPrefix(src, `\`) {
+	if strings.Contains(src, `\`) || strings.Contains(src, ":") || path.IsAbs(src) {
 		return nil, at(reference.source, "component src must be relative to its XML file")
 	}
-	path, err := filepath.Abs(filepath.Join(directory, src))
-	if err != nil {
-		return nil, at(reference.source, "resolve component path: %w", err)
-	}
-	relative, err := filepath.Rel(uiDirectory, path)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+	componentPath := path.Clean(path.Join(directory, src))
+	if componentPath == ".." || strings.HasPrefix(componentPath, "../") || !fs.ValidPath(componentPath) {
 		return nil, at(reference.source, "component src must stay inside the UI directory")
 	}
-	if stack[path] {
+	if stack[componentPath] {
 		return nil, at(reference.source, "component cycle detected at %q", src)
 	}
-	component, err := readXML(path)
+	doc.addResource(componentPath)
+	component, err := readXML(fsys, componentPath, sourceName(sourceRoot, componentPath))
 	if err != nil {
 		return nil, err
 	}
@@ -90,8 +87,8 @@ func expandComponent(reference *element, directory, namespace string, stack, nam
 	if err := component.noText(); err != nil {
 		return nil, err
 	}
-	stack[path] = true
-	children, err := expandChildren(component.children, filepath.Dir(path), instance, stack, names, uiDirectory)
-	delete(stack, path)
+	stack[componentPath] = true
+	children, err := expandChildren(fsys, component.children, componentPath, instance, stack, names, sourceRoot, doc)
+	delete(stack, componentPath)
 	return children, err
 }

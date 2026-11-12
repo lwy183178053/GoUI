@@ -34,12 +34,22 @@ func at(source Source, format string, args ...any) error {
 
 type Kind string
 
+type ButtonEvent uint8
+
 const (
 	UI     Kind = "ui"
 	Block  Kind = "block"
 	Text   Kind = "text"
 	Image  Kind = "image"
 	Button Kind = "button"
+)
+
+const (
+	MouseEnter ButtonEvent = iota
+	MouseLeave
+	MouseDown
+	MouseUp
+	Click
 )
 
 type Vec2 struct{ X, Y float64 }
@@ -75,8 +85,15 @@ type ImageStyle struct {
 }
 
 type ButtonStyle struct {
-	Action   string
 	Disabled bool
+}
+
+type WindowConfig struct {
+	Backend    string
+	Display    int
+	Width      int
+	Height     int
+	Fullscreen bool
 }
 
 type Node struct {
@@ -91,10 +108,26 @@ type Node struct {
 
 // Document 保存已加载的界面和字体。节点树交给 Renderer 管理，更新时使用 Renderer 的方法。
 type Document struct {
-	Directory string
-	Root      *Node
-	Fonts     map[string]*opentype.Font
-	nodes     map[string]*Node
+	Directory   string
+	AppName     string
+	Version     string
+	Window      WindowConfig
+	Resources   []string
+	Root        *Node
+	Fonts       map[string]*opentype.Font
+	nodes       map[string]*Node
+	resourceSet map[string]struct{}
 }
 
 func (d *Document) Find(id string) *Node { return d.nodes[id] }
+
+func (d *Document) addResource(path string) {
+	if d.resourceSet == nil {
+		d.resourceSet = make(map[string]struct{})
+	}
+	if _, exists := d.resourceSet[path]; exists {
+		return
+	}
+	d.resourceSet[path] = struct{}{}
+	d.Resources = append(d.Resources, path)
+}

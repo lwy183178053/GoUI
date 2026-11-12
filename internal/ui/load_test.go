@@ -6,10 +6,12 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"golang.org/x/image/font/gofont/goregular"
 )
@@ -49,6 +51,9 @@ func TestLoadDocument(t *testing.T) {
 	if doc.Directory != dir || len(doc.Fonts) != 1 || doc.Fonts["default"] == nil {
 		t.Fatalf("wrong directory or fonts: %#v", doc)
 	}
+	if doc.Window != (WindowConfig{Backend: "desktop", Width: 960, Height: 640}) {
+		t.Fatalf("wrong default window settings: %#v", doc.Window)
+	}
 	if doc.Root.Color != (color.NRGBA{R: 16, G: 32, B: 48, A: 128}) || doc.Find("root") != doc.Root {
 		t.Fatal("root color or lookup is incorrect")
 	}
@@ -78,6 +83,12 @@ func TestLoadingErrorsHaveLocations(t *testing.T) {
 		{"missing font file", `<config><fonts><font name="default" src="missing.ttf"/></fonts></config>`, `<ui/>`, `read font`},
 		{"bad font file", `<config><fonts><font name="default" src="main.xml"/></fonts></config>`, `<ui/>`, `parse font`},
 		{"unknown config tag", `<config><other/></config>`, `<ui/>`, `<fonts>`},
+		{"unknown window backend", `<config><window backend="gpu"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `backend must be desktop or drm`},
+		{"negative display index", `<config><window display="-1"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `display must be an integer`},
+		{"zero window width", `<config><window width="0"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `width must be an integer`},
+		{"invalid fullscreen", `<config><window fullscreen="yes"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `fullscreen must be true or false`},
+		{"duplicate window", `<config><window/><window/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `only one <window>`},
+		{"window children", `<config><window><child/></window><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`, `<ui/>`, `cannot contain child`},
 		{"unknown config attribute", `<config font="default"><fonts/></config>`, `<ui/>`, `unsupported attribute`},
 		{"font children", `<config><fonts><font name="default" src="fonts/regular.ttf"><font/></font></fonts></config>`, `<ui/>`, `cannot contain child`},
 		{"unknown font", testConfig, `<ui><text size="10,10" font="system">Hello</text></ui>`, `unregistered font`},
@@ -92,7 +103,7 @@ func TestLoadingErrorsHaveLocations(t *testing.T) {
 		{"include not supported", testConfig, `<ui><include src="x.xml"/></ui>`, `unsupported tag <include>`},
 		{"nested ui", testConfig, `<ui><ui/></ui>`, `unsupported tag <ui>`},
 		{"unknown attribute", testConfig, `<ui><block size="1,1" background="#FFFFFF"/></ui>`, `unsupported attribute "background"`},
-		{"on click", testConfig, `<ui><block size="1,1" on-click="click"/></ui>`, `unsupported attribute "on-click"`},
+		{"old button action", testConfig, `<ui><button size="1,1" on-click="click"/></ui>`, `unsupported attribute "on-click"`},
 		{"text child", testConfig, `<ui><text size="10,10"><block size="1,1"/></text></ui>`, `<text> may contain text only`},
 		{"block text", testConfig, `<ui><block size="1,1">invalid</block></ui>`, `cannot contain text`},
 		{"invalid root", testConfig, `<block size="1,1"/>`, `<ui> root`},
@@ -166,12 +177,43 @@ func TestUTF8BOMAndCDATA(t *testing.T) {
 }
 
 func TestProjectUI(t *testing.T) {
-	doc, err := Load(filepath.Join("..", "..", "GoUI"))
+	doc, err := Load(filepath.Join("..", "..", "GoUIExampleProject", "ui"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if doc.Root == nil || doc.Fonts["default"] == nil {
 		t.Fatal("the existing UI must remain loadable")
+	}
+}
+
+func TestLoadFSIncludesApplicationSettings(t *testing.T) {
+	files := fstest.MapFS{
+		"config.xml":         &fstest.MapFile{Data: []byte(`<config><app name="Demo" version="2.3.4.5"/><fonts><font name="default" src="fonts/default.ttf"/></fonts></config>`), Mode: fs.ModePerm},
+		"main.xml":           &fstest.MapFile{Data: []byte(`<ui><component src="component/card.xml" name="sample"/></ui>`), Mode: fs.ModePerm},
+		"component/card.xml": &fstest.MapFile{Data: []byte(`<component><block id="panel" size="10,10"/></component>`), Mode: fs.ModePerm},
+		"fonts/default.ttf":  &fstest.MapFile{Data: goregular.TTF, Mode: fs.ModePerm},
+	}
+	doc, err := LoadFS(files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.AppName != "Demo" || doc.Version != "2.3.4.5" || doc.Find("sample.panel") == nil {
+		t.Fatalf("embedded settings or component were not loaded: app=%q version=%q", doc.AppName, doc.Version)
+	}
+	if len(doc.Resources) != 2 || doc.Resources[0] != "fonts/default.ttf" || doc.Resources[1] != "component/card.xml" {
+		t.Fatalf("unexpected collected resource paths: %#v", doc.Resources)
+	}
+}
+
+func TestLoadFSRejectsRepeatedAppAndInvalidVersion(t *testing.T) {
+	for _, config := range []string{
+		`<config><app name="A" version="1.0.0"/><app name="B" version="1.0.0"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`,
+		`<config><app name="A" version="1.0"/><fonts><font name="default" src="fonts/regular.ttf"/></fonts></config>`,
+	} {
+		directory := fixture(t, config, `<ui/>`)
+		if _, err := Load(directory); err == nil {
+			t.Fatalf("Load accepted invalid app config %q", config)
+		}
 	}
 }
 
@@ -244,7 +286,7 @@ func TestComponentErrors(t *testing.T) {
 func TestImageAndButtonAttributes(t *testing.T) {
 	dir := fixture(t, testConfig, `<ui>
   <image id="photo" size="16,8" src="assets/photo.png" fit="contain"/>
-  <button id="run" size="20,10" on-click="preview.run" disabled="true"/>
+  <button id="run" size="20,10" disabled="true"/>
 </ui>`)
 	path := filepath.Join(dir, "assets", "photo.png")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -265,7 +307,7 @@ func TestImageAndButtonAttributes(t *testing.T) {
 	if photo.Image == nil || photo.Image.Image.Bounds().Size() != image.Pt(4, 2) || photo.Image.Fit != "contain" {
 		t.Fatalf("image attributes were not loaded: %#v", photo.Image)
 	}
-	if button.Button == nil || button.Button.Action != "preview.run" || !button.Button.Disabled {
+	if button.Button == nil || !button.Button.Disabled {
 		t.Fatalf("button attributes were not loaded: %#v", button.Button)
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"image/draw"
 	"math"
 
-	"goui/internal/ui"
+	"github.com/lwy183178053/GoUI/internal/ui"
 
 	xdraw "golang.org/x/image/draw"
 )

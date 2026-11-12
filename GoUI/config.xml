@@ -1,6 +1,0 @@
-<config>
-    <fonts>
-        <font name="default" src="fonts/AlibabaPuHuiTi-3-55-Regular.ttf" />
-        <font name="Bold" src="fonts/AlibabaPuHuiTi-3-85-Bold.ttf" />
-    </fonts>
-</config>

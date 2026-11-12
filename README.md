@@ -1,103 +1,149 @@
 # GoUI
 
-GoUI 是一个用 XML 描述界面、用 Go 加载和绘制的 UI 实验项目。当前预览程序在 Windows 第 2 块屏幕全屏显示；XML、布局、图片和文字最终绘制成平台无关的 `image.RGBA`。运行时不使用 CGO。
+GoUI 使用 XML 描述界面、使用 Go 编写业务代码。框架是普通 Go 模块；用户项目自己写 `main.go` 并调用框架 API，不使用代码生成器、独立打包器、反射或热更新。
 
-## 运行
+目前 XML、布局、CPU 软件渲染和桌面窗口后端已连通。桌面窗口支持 Windows/Linux；DRM/KMS 只接受配置并在启动时明确报告尚未实现。框架不把 UI 资源写进 exe，发布时需要将 `ui/` 与编译后的程序一起部署。
 
-需要 Windows 和 Go 1.25 或更新版本。默认加载 `./GoUI`，也可以指定其它包含 `main.xml`、`config.xml` 的目录：
+## 运行示例
+
+需要 Go 1.25 或更新版本。仓库内示例是一个独立 Go 模块：
 
 ```powershell
-$env:CGO_ENABLED = '0'
+cd GoUIExampleProject
 go run .
-go run . -ui .\GoUI
 ```
 
-预览需要至少两块屏幕，会在系统报告的第 2 块屏幕全屏启动。按 `Alt+F4` 退出。Windows 显示缩放可能使窗口逻辑渲染尺寸小于面板物理分辨率，这是 Ebitengine 使用设备无关像素的结果，不影响窗口铺满屏幕。
+标准编译同样由 Go 工具链完成：
 
-## 当前支持
+```powershell
+go build -o GoUI.exe .
+```
 
-- 标签：`ui`、`block`、`text`、`image`、`button` 和可嵌套的 `component`。
-- 布局：`anchor`、`pivot`、`position`、`size`、`margin`；固定尺寸和 `-1` 填充可分别设置在宽、高两个方向。
-- 绘制：透明颜色叠加、圆角、字体、文字对齐与换行；图片支持 JPEG、PNG、GIF 静态帧和 `stretch`、`contain`、`cover`。
-- 交互：按钮矩形命中、遮挡顺序、禁用状态和按下/释放配对。Go 代码通过 `Renderer.RegisterAction` 注册 XML 的 `on-click` 命令。
-- 更新：通过 `SetText`、`SetColor`、`SetTextColor`、`SetVisible`、`SetDisabled` 修改有 ID 的节点；只重绘受影响矩形，并返回新帧供窗口后端更新。
-- 组件：加载时透明展开，不产生额外布局层；组件名与节点 ID 自动添加点号前缀，嵌套组件可复用。
+`GoUI.exe` 运行时需要同目录下的 `ui/` 资源目录。示例通过 `goui.Open("./ui")` 加载它，因此从项目目录启动程序。
 
-DRM/KMS 后端、键盘输入、动画、热加载和自动布局尚未实现。当前 `image.RGBA` 与 `backend.Presenter` 是后端边界；后续 DRM 后端可以复用 XML、布局和软件渲染代码。
-
-## UI 目录
+## 用户项目
 
 ```text
-GoUI/
-  config.xml                  字体注册表
-  main.xml                    主界面
-  component/
-    display-card.xml          可复用卡片组件
-    parts/connection.xml      卡片中的嵌套状态组件
-  fonts/                      UI 使用的字体文件
-  assets/                     图片资源
+MyApp/
+  go.mod
+  main.go
+  ui/
+    config.xml
+    main.xml
+    component/
+    assets/
+    fonts/
 ```
 
-`config.xml` 必须注册 `name="default"` 的字体。字体路径相对 UI 目录；图片路径也相对 UI 目录；组件 `src` 路径相对当前 XML 文件。组件实例名不能包含点号，且展开后必须全局唯一。组件中的节点 ID 会变成 `组件名.id`，嵌套组件会继续添加名称，例如 `left.status.label`。UI 资源随程序目录一起提供，分发字体时须保留字体授权说明。
+项目通过 Go module 引用 GoUI。仓库示例的 `go.mod` 使用 `replace` 指向本地框架，正式项目可使用发布的模块版本。
 
-## 代码目录与文件
+最小入口示例：
 
-### 根目录
+```go
+package main
 
-- `main.go`：命令行入口，解析 `-ui`，加载界面并创建渲染器；在这里注册示例按钮的 Go 命令。
-- `go.mod`、`go.sum`：Go 版本与依赖版本锁定。
-- `README.md`：项目运行方式、当前能力和代码结构。
+import (
+    "log"
+    goui "github.com/lwy183178053/GoUI"
+)
 
-### `internal/ui`
+func main() {
+    app, err := goui.Open("./ui")
+    if err != nil {
+        log.Fatal(err)
+    }
 
-- `model.go`：平台无关的 UI 节点、通用布局样式、Text/Image/Button 数据和文档对象。
-- `xml.go`：用标准库读取 XML token，保留文件、行、列，检查 XML 结构与未知属性。
-- `values.go`：解析颜色、整数坐标、0～1 比例、小数和布尔值。
-- `load.go`：加载 `config.xml`、字体、`main.xml`、图片，校验标签属性并生成节点树。
-- `components.go`：加载并展开组件 XML，检查循环引用和重复组件名，给组件 ID 加命名空间。
-- `load_test.go`：配置、XML 错误位置、布局属性、图片与组件展开测试。
+    page := app.Page()
+    status, err := page.GetText("status")
+    if err != nil {
+        log.Fatal(err)
+    }
+    button, err := page.GetButton("run")
+    if err != nil {
+        log.Fatal(err)
+    }
+    if err := button.OnClick(func(page *goui.Page) error {
+        return status.SetText("按钮已执行")
+    }); err != nil {
+        log.Fatal(err)
+    }
 
-### `internal/layout`
+    if err := app.Run(); err != nil {
+        log.Fatal(err)
+    }
+}
+```
 
-- `layout.go`：计算完整节点树的浮点坐标和整数像素矩形；也提供按钮命中和子树范围计算。
-- `layout_test.go`：验证锚点、轴心、半像素取整、填充边距、窗口尺寸变化和按钮命中顺序。
+`Open` 的参数是直接包含 `config.xml` 和 `main.xml` 的 UI 目录。`Page` 提供 `GetBlock`、`GetText`、`GetImage`、`GetButton`，Getter 返回组件和错误，ID 不存在或标签类型不符会立即报错。组件共用 `SetColor`、`SetVisible` 和 `MoveTo`、`RotateTo`、`ScaleTo` 动画方法；Text 还提供 `SetText`、`SetTextColor`，Button 还提供 `SetDisabled`、`OnMouseEnter`、`OnMouseLeave`、`OnMouseDown`、`OnMouseUp` 和 `OnClick`。每种鼠标事件在一个按钮上只能绑定一次，XML 不再声明 `on-click`。
 
-### `internal/render/software`
+动画方法的时长使用 `time.Duration`，例如 `500*time.Millisecond`。移动目标是父节点坐标中的 `position`，旋转和缩放围绕组件的 `pivot` 执行；Text、Image、Button 因嵌入 Block 也可使用这些方法。动画使用线性插值，时长为 0 时立即生效。
 
-- `render.go`：管理字体、布局缓存和 RGBA 帧；处理按钮命令及节点动态更新，并局部重绘脏区。
-- `shapes.go`：绘制填充色和抗锯齿圆角矩形。
-- `text.go`：按字体度量绘制文字，处理水平/垂直对齐、换行和文字区域裁切。
-- `images.go`：按 stretch、contain、cover 缩放图片，并按 Image 的矩形与圆角裁切。
-- `render_test.go`：覆盖背景混色、节点绘制顺序、文字、图片、圆角、按钮和局部刷新。
+## 配置
 
-### `internal/backend`
+`config.xml` 必须注册一个名为 `default` 的字体。窗口配置可省略，默认是在主显示器上打开 960×640 窗口：
 
-- `backend.go`：定义 RGBA 帧来源、窗口 Presenter 和鼠标指针输入接口。
-- `window/window.go`：设置窗口后端的标题等公共选项。
-- `window/window_windows.go`：Windows Ebitengine 窗口；选择第 2 块屏幕、全屏显示帧并转发鼠标点击。
-- `window/window_other.go`：非 Windows 系统的占位实现，给出明确的“不支持窗口预览”错误。
+```xml
+<config>
+  <app name="My App" version="1.0.0" />
+  <window backend="desktop" display="0" width="960" height="640" fullscreen="false" />
+  <fonts>
+    <font name="default" src="fonts/default.ttf" />
+  </fonts>
+</config>
+```
 
-### `doc` 与 `GoUI`
+`display` 从 0 开始，0 是系统主显示器。`goui.Displays()` 返回桌面显示器列表及其索引、名称和尺寸；可用 `len(displays)` 查看显示器数量。窗口模式使用 `width` 和 `height`，全屏模式使用窗口后端报告的目标显示器尺寸。尺寸单位是设备独立像素，高 DPI 缩放时可能不同于面板物理像素。`backend="drm"` 当前会返回 `DRM backend is not implemented yet`。
 
-- `doc/index.html`：按通用属性、标签、组件和补充说明组织的 XML 使用教程。
-- `doc/styles.css`、`doc/docs.js`：教程样式、折叠侧栏、当前章节提示和代码复制按钮。
-- `GoUI/main.xml`、`GoUI/config.xml`、`GoUI/component/`：可运行的界面示例、字体配置和组件。
-- `GoUI/assets/`、`GoUI/fonts/`：示例图片与字体资源。
-- `AlibabaPuHuiTi-3/`：下载的字体原始文件目录；运行时实际使用的是 `GoUI/fonts/` 下配置的文件。
+字体路径和图片路径相对于 UI 目录；`component src` 相对于引用所在的 XML 文件。应用名用作窗口标题，版本保留为应用元数据，不写入 Windows exe 版本资源。
 
-## 测试与构建
+## 代码目录
+
+- `application.go`：`Open`、`Application.Page` 和 `Application.Run`，连接 XML 加载、软件渲染与窗口后端。
+- `page.go`：公开的 `Page` 及 Block、Text、Image、Button 类型化 API。Text、Image、Button 通过 Go 结构体嵌入 Block，共享基础方法。
+- `display.go`：公开桌面显示器信息和 `Displays()` 查询函数。
+- `go.mod`、`go.sum`：框架模块地址和依赖版本。
+- `internal/ui/`：XML 解析、config 校验、字体/图片读取、组件展开和节点模型。
+- `internal/layout/`：锚点布局、像素取整、按钮命中和重绘范围计算。
+- `internal/render/software/render.go`：组装字体、节点绘制顺序、RGBA 帧缓存和组件状态更新。
+- `internal/render/software/animation.go`：移动、旋转、缩放的线性插值，以及绘制和命中共用的仿射变换。
+- `internal/render/software/input.go`：鼠标事件注册、按钮事件派发和逆绘制顺序命中。
+- `internal/render/software/shapes.go`、`text.go`、`images.go`：圆角矩形、文字排版和图片缩放绘制。
+- `internal/backend/backend.go`：帧来源、呈现后端和指针输入接口。
+- `internal/backend/window/`：Ebitengine 桌面窗口、Windows/Linux 显示器枚举和其它系统的明确错误实现。
+- `doc/`：可直接打开的 XML 教程页面、样式和侧栏导航脚本。
+- `GoUIExampleProject/`：拥有独立 `go.mod` 的完整用户项目示例。
+- `GoUIExampleProject/main.go`：示例业务入口和按钮事件绑定。
+- `GoUIExampleProject/ui/`：示例 `config.xml`、`main.xml`、组件、字体和图片资源。
+
+框架内部实现都留在 `internal/`，用户业务只需要导入根包 `github.com/lwy183178053/GoUI`。
+
+## 检查
+
+在框架仓库根目录运行：
 
 ```powershell
 $env:CGO_ENABLED = '0'
 go test ./...
 go vet ./...
-go build -o .cache/goui.exe .
-
-# 在独立 PowerShell 会话中做 Linux/ARM64 无 CGO 编译检查
-$env:CGO_ENABLED = '0'
-$env:GOOS = 'linux'
-$env:GOARCH = 'arm64'
-go build -o .cache/goui-linux-arm64 .
 ```
 
-Linux/ARM64 构建只验证平台无关代码可编译，不表示已经实现或验证 DRM/KMS 实机输出。
+示例模块单独检查：
+
+```powershell
+cd GoUIExampleProject
+go test ./...
+```
+
+无 CGO 桌面交叉编译检查：
+
+```powershell
+$env:CGO_ENABLED = '0'
+$env:GOOS = 'linux'
+$env:GOARCH = 'amd64'
+go build ./...
+$env:GOOS = 'windows'
+$env:GOARCH = 'amd64'
+go build ./...
+```
+
+交叉编译只验证代码可构建，不代表已在目标桌面环境或 DRM 硬件上完成实机验证。

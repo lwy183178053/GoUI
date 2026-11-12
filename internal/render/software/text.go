@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"goui/internal/ui"
+	"github.com/lwy183178053/GoUI/internal/ui"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"

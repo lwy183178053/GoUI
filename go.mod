@@ -1,4 +1,4 @@
-module goui
+module github.com/lwy183178053/GoUI
 
 go 1.25.0
 

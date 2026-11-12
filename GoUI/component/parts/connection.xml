@@ -1,7 +1,0 @@
-<component>
-  <block id="badge" position="18,310" size="148,28"
-    color="#294541" radius="14">
-    <text id="label" size="-1,-1" text-color="#B6E0D5"
-      font-size="13" align="center" valign="middle">组件已加载</text>
-  </block>
-</component>

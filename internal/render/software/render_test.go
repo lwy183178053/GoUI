@@ -3,11 +3,13 @@ package software
 import (
 	"image"
 	"image/color"
+	"math"
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
-	"goui/internal/ui"
+	"github.com/lwy183178053/GoUI/internal/ui"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
@@ -268,7 +270,7 @@ func TestTextUsesSelectedFontAndOwnColor(t *testing.T) {
 }
 
 func TestExistingUIRendersAndResizes(t *testing.T) {
-	doc, err := ui.Load(filepath.Join("..", "..", "..", "GoUI"))
+	doc, err := ui.Load(filepath.Join("..", "..", "..", "GoUIExampleProject", "ui"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,11 +330,11 @@ func TestButtonActionsAndDirtyUpdates(t *testing.T) {
 	lower := block(0, 0, 20, 20, red)
 	lower.ID = "run"
 	lower.Kind = ui.Button
-	lower.Button = &ui.ButtonStyle{Action: "preview.run"}
+	lower.Button = &ui.ButtonStyle{}
 	upper := block(0, 0, 10, 20, green)
 	upper.ID = "disabled"
 	upper.Kind = ui.Button
-	upper.Button = &ui.ButtonStyle{Action: "preview.disabled", Disabled: true}
+	upper.Button = &ui.ButtonStyle{Disabled: true}
 	status := textNode(20, 0, 20, 20, "old")
 	status.ID = "status"
 	group := block(0, 22, 5, 5, green, block(8, 8, 4, 4, blue))
@@ -341,10 +343,10 @@ func TestButtonActionsAndDirtyUpdates(t *testing.T) {
 	renderer := rendererFor(t, lower, upper, status, group, outside)
 	first := frameFor(t, renderer, 40, 40)
 	called := 0
-	if err := renderer.RegisterAction("preview.disabled", func() error { called += 10; return nil }); err != nil {
+	if err := renderer.SetButtonEvent("disabled", ui.Click, func() error { called += 10; return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if err := renderer.RegisterAction("preview.run", func() error {
+	if err := renderer.SetButtonEvent("run", ui.Click, func() error {
 		called++
 		return renderer.SetText("status", "done")
 	}); err != nil {
@@ -357,6 +359,10 @@ func TestButtonActionsAndDirtyUpdates(t *testing.T) {
 	renderer.PointerDown(15, 5)
 	if err := renderer.PointerUp(15, 5); err != nil || called != 1 {
 		t.Fatalf("button action did not run: called=%d err=%v", called, err)
+	}
+	renderer.PointerDown(15, 5)
+	if err := renderer.PointerUp(5, 5); err != nil || called != 1 {
+		t.Fatalf("releasing over another button should cancel the action: called=%d err=%v", called, err)
 	}
 	renderer.PointerDown(15, 5)
 	if err := renderer.PointerUp(25, 5); err != nil || called != 1 {
@@ -393,5 +399,185 @@ func TestUpdateBeforeFirstFrame(t *testing.T) {
 	frame := frameFor(t, renderer, 100, 30)
 	if inkBounds(frame).Empty() {
 		t.Fatal("updates made before the first frame should be drawn")
+	}
+}
+
+func TestButtonMouseEventsFollowPointer(t *testing.T) {
+	button := block(0, 0, 10, 10, red)
+	button.ID = "button"
+	button.Kind = ui.Button
+	button.Button = &ui.ButtonStyle{}
+	renderer := rendererFor(t, button)
+	frameFor(t, renderer, 20, 20)
+
+	var events []ui.ButtonEvent
+	for _, event := range []ui.ButtonEvent{ui.MouseEnter, ui.MouseLeave, ui.MouseDown, ui.MouseUp, ui.Click} {
+		event := event
+		if err := renderer.SetButtonEvent("button", event, func() error {
+			events = append(events, event)
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, step := range []struct {
+		move image.Point
+		down bool
+		up   bool
+	}{
+		{move: image.Pt(2, 2)},
+		{move: image.Pt(3, 3)},
+		{move: image.Pt(3, 3), down: true},
+		{move: image.Pt(15, 15)},
+		{move: image.Pt(2, 2)},
+		{move: image.Pt(2, 2), up: true},
+	} {
+		if err := renderer.PointerMove(step.move.X, step.move.Y); err != nil {
+			t.Fatal(err)
+		}
+		if step.down {
+			if err := renderer.PointerDown(step.move.X, step.move.Y); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if step.up {
+			if err := renderer.PointerUp(step.move.X, step.move.Y); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	want := []ui.ButtonEvent{ui.MouseEnter, ui.MouseDown, ui.MouseLeave, ui.MouseEnter, ui.MouseUp, ui.Click}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("button events = %v, want %v", events, want)
+	}
+}
+
+func TestTweenInterpolatesLinearly(t *testing.T) {
+	start := time.Unix(100, 0)
+	animation := tween{
+		from: [2]float64{2, -4}, to: [2]float64{12, 6},
+		started: start, duration: time.Second,
+	}
+	value, running := animation.sample(start.Add(500 * time.Millisecond))
+	if !running || value != [2]float64{7, 1} {
+		t.Fatalf("halfway tween = %v, running=%v", value, running)
+	}
+	value, running = animation.sample(start.Add(time.Second))
+	if running || value != animation.to {
+		t.Fatalf("completed tween = %v, running=%v", value, running)
+	}
+}
+
+func TestScaleAnimationChangesDrawingAndButtonHit(t *testing.T) {
+	button := block(2, 2, 4, 4, red)
+	button.ID = "button"
+	button.Kind = ui.Button
+	button.Button = &ui.ButtonStyle{}
+	renderer := rendererFor(t, button)
+	frameFor(t, renderer, 16, 16)
+	if err := renderer.ScaleTo("button", 2, 2, 0); err != nil {
+		t.Fatal(err)
+	}
+	frame := frameFor(t, renderer, 16, 16)
+	pixel(t, frame, 8, 8, color.RGBA{R: 255, A: 255})
+
+	clicked := false
+	if err := renderer.SetButtonEvent("button", ui.Click, func() error {
+		clicked = true
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderer.PointerDown(8, 8); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderer.PointerUp(8, 8); err != nil {
+		t.Fatal(err)
+	}
+	if !clicked {
+		t.Fatal("scaled button was drawn but could not be clicked")
+	}
+}
+
+func TestRotationAnimationChangesDrawingAndButtonHit(t *testing.T) {
+	button := block(5, 5, 8, 4, red)
+	button.ID = "button"
+	button.Kind = ui.Button
+	button.Pivot = ui.Vec2{X: 0.5, Y: 0.5}
+	button.Button = &ui.ButtonStyle{}
+	renderer := rendererFor(t, button)
+	frameFor(t, renderer, 20, 16)
+	if err := renderer.RotateTo("button", 90, 0); err != nil {
+		t.Fatal(err)
+	}
+	frame := frameFor(t, renderer, 20, 16)
+	pixel(t, frame, 5, 2, color.RGBA{R: 255, A: 255})
+	pixel(t, frame, 8, 5, black)
+
+	clicked := false
+	if err := renderer.SetButtonEvent("button", ui.Click, func() error {
+		clicked = true
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderer.PointerDown(5, 2); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderer.PointerUp(5, 2); err != nil {
+		t.Fatal(err)
+	}
+	if !clicked {
+		t.Fatal("rotated button was drawn but could not be clicked")
+	}
+}
+
+func TestMoveAnimationUpdatesLayout(t *testing.T) {
+	item := block(0, 0, 4, 4, red)
+	item.ID = "item"
+	renderer := rendererFor(t, item)
+	first := frameFor(t, renderer, 16, 8)
+	pixel(t, first, 1, 1, color.RGBA{R: 255, A: 255})
+	if err := renderer.MoveTo("item", 8, 0, 0); err != nil {
+		t.Fatal(err)
+	}
+	second := frameFor(t, renderer, 16, 8)
+	pixel(t, second, 1, 1, black)
+	pixel(t, second, 9, 1, color.RGBA{R: 255, A: 255})
+}
+
+func TestMoveAnimationRendersIntermediatePosition(t *testing.T) {
+	item := block(0, 0, 4, 4, red)
+	item.ID = "item"
+	renderer := rendererFor(t, item)
+	frameFor(t, renderer, 16, 8)
+	started := time.Now().Add(-500 * time.Millisecond)
+	renderer.motions["item"] = &animation{
+		position: [2]float64{0, 0},
+		scale:    [2]float64{1, 1},
+		move: &tween{
+			from: [2]float64{0, 0}, to: [2]float64{8, 0},
+			started: started, duration: time.Second,
+		},
+	}
+	frame := frameFor(t, renderer, 16, 8)
+	ink := inkBounds(frame)
+	if ink.Min.X < 3 || ink.Min.X > 5 || ink.Max.X < 7 || ink.Max.X > 9 {
+		t.Fatalf("halfway movement rendered at %v, want a 4-pixel offset", ink)
+	}
+}
+
+func TestAnimationRejectsInvalidTargets(t *testing.T) {
+	item := block(0, 0, 4, 4, red)
+	item.ID = "item"
+	renderer := rendererFor(t, item)
+	if err := renderer.MoveTo("item", 1, 1, -time.Millisecond); err == nil {
+		t.Fatal("negative animation duration unexpectedly succeeded")
+	}
+	if err := renderer.RotateTo("item", math.Inf(1), 0); err == nil {
+		t.Fatal("infinite rotation unexpectedly succeeded")
+	}
+	if err := renderer.ScaleTo("item", 0, 1, 0); err == nil {
+		t.Fatal("zero scale unexpectedly succeeded")
 	}
 }

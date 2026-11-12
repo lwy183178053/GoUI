@@ -4,7 +4,7 @@ import (
 	"image"
 	"testing"
 
-	"goui/internal/ui"
+	"github.com/lwy183178053/GoUI/internal/ui"
 )
 
 func TestIndependentAxes(t *testing.T) {
@@ -73,9 +73,9 @@ func TestNestedPositionAndSharedEdges(t *testing.T) {
 }
 
 func TestButtonHitOrderAndVisibility(t *testing.T) {
-	lower := &ui.Node{Kind: ui.Button, BlockStyle: ui.BlockStyle{Visible: true, Size: image.Pt(20, 20)}, Button: &ui.ButtonStyle{Action: "lower"}}
+	lower := &ui.Node{Kind: ui.Button, BlockStyle: ui.BlockStyle{Visible: true, Size: image.Pt(20, 20)}, Button: &ui.ButtonStyle{}}
 	overlay := &ui.Node{Kind: ui.Block, BlockStyle: ui.BlockStyle{Visible: true, Size: image.Pt(20, 20)}}
-	upper := &ui.Node{Kind: ui.Button, BlockStyle: ui.BlockStyle{Visible: true, Size: image.Pt(10, 20)}, Button: &ui.ButtonStyle{Action: "upper", Disabled: true}}
+	upper := &ui.Node{Kind: ui.Button, BlockStyle: ui.BlockStyle{Visible: true, Size: image.Pt(10, 20)}, Button: &ui.ButtonStyle{Disabled: true}}
 	root := &ui.Node{Kind: ui.UI, BlockStyle: ui.BlockStyle{Visible: true}, Children: []*ui.Node{lower, overlay, upper}}
 	box := Compute(root, 30, 20)
 	if got := HitButton(box, 5, 5); got != upper {

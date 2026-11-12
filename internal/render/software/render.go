@@ -1,4 +1,4 @@
-// Package software 使用 CPU 将 GoUI 绘制到 RGBA 帧缓冲。
+// Package software 使用 CPU 将 GoUI 文档绘制到 RGBA 帧缓冲。
 package software
 
 import (
@@ -7,10 +7,12 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"time"
 
-	"goui/internal/layout"
-	"goui/internal/ui"
+	"github.com/lwy183178053/GoUI/internal/layout"
+	"github.com/lwy183178053/GoUI/internal/ui"
 
+	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 )
@@ -29,7 +31,10 @@ type Renderer struct {
 	nodes    map[string]*ui.Node
 	frame    *image.RGBA
 	dirty    image.Rectangle
-	actions  map[string]func() error
+	handlers map[string]map[ui.ButtonEvent]func() error
+	motions  map[string]*animation
+	world    map[*ui.Node]affine
+	hovered  *ui.Node
 	pressed  *ui.Node
 	closed   bool
 }
@@ -43,7 +48,9 @@ func New(document *ui.Document) (*Renderer, error) {
 		faces:    make(map[faceKey]font.Face),
 		boxes:    make(map[string]*layout.Box),
 		nodes:    make(map[string]*ui.Node),
-		actions:  make(map[string]func() error),
+		handlers: make(map[string]map[ui.ButtonEvent]func() error),
+		motions:  make(map[string]*animation),
+		world:    make(map[*ui.Node]affine),
 	}
 	renderer.indexNodes(document.Root)
 	if err := renderer.prepare(document.Root); err != nil {
@@ -85,11 +92,12 @@ func (r *Renderer) Frame(width, height int) (*image.RGBA, error) {
 		return nil, fmt.Errorf("render size must be positive, got %dx%d", width, height)
 	}
 	if r.layout == nil || r.frame.Rect.Dx() != width || r.frame.Rect.Dy() != height {
-		r.layout = layout.Compute(r.document.Root, width, height)
-		r.boxes = make(map[string]*layout.Box)
-		r.indexBoxes(r.layout)
 		r.frame = image.NewRGBA(image.Rect(0, 0, width, height))
+		r.rebuildLayout(width, height)
 		r.dirty = r.frame.Bounds()
+	}
+	if r.advanceAnimations(time.Now()) {
+		r.invalidate(r.frame.Bounds())
 	}
 	if r.dirty.Empty() {
 		return r.frame, nil
@@ -98,10 +106,17 @@ func (r *Renderer) Frame(width, height int) (*image.RGBA, error) {
 	draw.Draw(next, next.Bounds(), r.frame, r.frame.Bounds().Min, draw.Src)
 	dirty := r.dirty.Intersect(next.Bounds())
 	draw.Draw(next, dirty, image.Transparent, image.Point{}, draw.Src)
-	r.paint(next, r.layout, dirty)
+	r.world = make(map[*ui.Node]affine)
+	r.paint(next, r.layout, dirty, identity)
 	r.frame = next
 	r.dirty = image.Rectangle{}
 	return r.frame, nil
+}
+
+func (r *Renderer) rebuildLayout(width, height int) {
+	r.layout = layout.Compute(r.document.Root, width, height)
+	r.boxes = make(map[string]*layout.Box)
+	r.indexBoxes(r.layout)
 }
 
 func (r *Renderer) indexBoxes(box *layout.Box) {
@@ -122,11 +137,28 @@ func (r *Renderer) indexNodes(node *ui.Node) {
 	}
 }
 
-func (r *Renderer) paint(frame *image.RGBA, box *layout.Box, limit image.Rectangle) {
+func (r *Renderer) paint(frame *image.RGBA, box *layout.Box, limit image.Rectangle, parent affine) {
 	node := box.Node
 	if !node.Visible {
 		return
 	}
+	transform := multiply(parent, nodeTransform(box, r.motions[node.ID]))
+	r.world[node] = transform
+	if transform == identity {
+		r.paintSelf(frame, box, limit)
+	} else if !box.Pixels.Empty() {
+		layer := image.NewRGBA(box.Pixels)
+		r.paintSelf(layer, box, layer.Bounds())
+		xdraw.CatmullRom.Transform(frame, toAff3(transform), layer, layer.Bounds(), draw.Over, nil)
+	}
+	// 子节点按同一组父级变换绘制，但不受父矩形裁剪。
+	for _, child := range box.Children {
+		r.paint(frame, child, limit, transform)
+	}
+}
+
+func (r *Renderer) paintSelf(frame *image.RGBA, box *layout.Box, limit image.Rectangle) {
+	node := box.Node
 	if node.Kind == ui.UI {
 		clip := box.Pixels.Intersect(frame.Bounds()).Intersect(limit)
 		if !clip.Empty() {
@@ -142,47 +174,6 @@ func (r *Renderer) paint(frame *image.RGBA, box *layout.Box, limit image.Rectang
 		face := r.faces[faceKey{node.Text.Font, node.Text.FontSize}]
 		paintText(frame, box.Pixels, node.Text, face, limit)
 	}
-	// 子节点不受父节点矩形或圆角裁剪，只受画布边界限制。
-	for _, child := range box.Children {
-		r.paint(frame, child, limit)
-	}
-}
-
-// RegisterAction 把 XML 中的 on-click 名称绑定到 Go 函数。
-func (r *Renderer) RegisterAction(name string, action func() error) error {
-	if r.closed {
-		return errors.New("renderer is closed")
-	}
-	if name == "" || action == nil {
-		return errors.New("action name and function are required")
-	}
-	if _, exists := r.actions[name]; exists {
-		return fmt.Errorf("action %q is already registered", name)
-	}
-	r.actions[name] = action
-	return nil
-}
-
-// PointerDown 记录当前位置最上层的按钮，供 PointerUp 判断是否是同一次点击。
-func (r *Renderer) PointerDown(x, y int) {
-	r.pressed = layout.HitButton(r.layout, x, y)
-}
-
-// PointerUp 仅在按下和释放落在同一可用按钮时执行命令。
-func (r *Renderer) PointerUp(x, y int) error {
-	pressed := r.pressed
-	r.pressed = nil
-	if pressed == nil || pressed.Button == nil || pressed.Button.Disabled || pressed.Button.Action == "" {
-		return nil
-	}
-	if layout.HitButton(r.layout, x, y) != pressed {
-		return nil
-	}
-	action, exists := r.actions[pressed.Button.Action]
-	if !exists {
-		return fmt.Errorf("button %q action %q is not registered", pressed.ID, pressed.Button.Action)
-	}
-	return action()
 }
 
 func (r *Renderer) node(id string) (*ui.Node, *layout.Box, error) {
@@ -196,6 +187,15 @@ func (r *Renderer) node(id string) (*ui.Node, *layout.Box, error) {
 	return node, r.boxes[id], nil
 }
 
+// Kind 返回节点标签，用于公开组件 Getter 的类型校验。
+func (r *Renderer) Kind(id string) (ui.Kind, error) {
+	node, _, err := r.node(id)
+	if err != nil {
+		return "", err
+	}
+	return node.Kind, nil
+}
+
 func (r *Renderer) invalidate(rect image.Rectangle) {
 	if r.frame == nil {
 		return
@@ -203,6 +203,13 @@ func (r *Renderer) invalidate(rect image.Rectangle) {
 	rect = rect.Intersect(r.frame.Bounds())
 	if rect.Empty() {
 		return
+	}
+	for id, motion := range r.motions {
+		if motion.move != nil || motion.position != [2]float64{float64(r.nodes[id].Position.X), float64(r.nodes[id].Position.Y)} ||
+			motion.rotation != 0 || motion.scale != [2]float64{1, 1} {
+			r.dirty = r.frame.Bounds()
+			return
+		}
 	}
 	if r.dirty.Empty() {
 		r.dirty = rect
@@ -311,6 +318,8 @@ func (r *Renderer) Close() error {
 	r.layout = nil
 	r.boxes = nil
 	r.nodes = nil
-	r.actions = nil
+	r.handlers = nil
+	r.motions = nil
+	r.world = nil
 	return errors.Join(errs...)
 }

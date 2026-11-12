@@ -5,7 +5,7 @@ import (
 	"image"
 	"math"
 
-	"goui/internal/ui"
+	"github.com/lwy183178053/GoUI/internal/ui"
 )
 
 type Rect struct{ X, Y, Width, Height float64 }
