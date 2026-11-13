@@ -33,30 +33,24 @@
       </section>
     </div>
     <section class="panel display-panel" aria-labelledby="display-title">
-      <div class="heading"><h2 id="display-title">底部文字</h2><span id="device-status" class="caption">待命</span></div>
+      <div class="heading"><h2 id="display-title">显示文字</h2></div>
       <form id="display-form" class="display-editor">
-        <label class="sr-only" for="display-text">回答文字</label>
-        <textarea id="display-text" rows="2" maxlength="8192" placeholder="输入回答文字，屏幕底部透明显示"></textarea>
+        <label class="sr-only" for="display-text">显示文字</label>
+        <textarea id="display-text" rows="2" maxlength="8192" placeholder="输入提示或回答文字，例如：正在倾听…"></textarea>
         <div class="display-actions">
-          <label class="sr-only" for="display-status">交互状态</label>
-          <select id="display-status">
-            <option value="idle">待命</option><option value="listening">正在倾听</option>
-            <option value="thinking">正在思考</option><option value="speaking">正在回答</option>
-          </select>
           <button type="submit" class="primary">更新显示</button>
           <button id="display-clear" type="button">清空</button>
         </div>
         <details>
           <summary>增量输出测试</summary>
           <div class="display-append"><input id="display-delta" aria-label="追加文字片段" placeholder="追加文字片段"><button id="display-append" type="button">追加</button><button id="display-stream" type="button">模拟流式回答</button></div>
-          <p id="device-text" class="device-text">—</p>
         </details>
       </form>
       <p id="display-message" class="message" role="status">文字与表情独立控制。</p>
     </section>
     <details class="api-section">
       <summary>接口用法</summary>
-      <p>表情：POST /api/emotion · 两个 0～4 的整数。文字：POST /api/display · text 替换、append 追加、status 设置状态。</p>
+      <p>表情：POST /api/emotion · 两个 0～4 的整数。文字：POST /api/display · text 替换、append 追加；text 传空字符串清空。提示和回答共用一个文字区域。</p>
       <pre><code id="api-example">{"valence":2,"arousal":2}</code></pre>
       <p>预览采样实际 UI 画面，包含停顿、回正与字幕；网络传输会有少量延迟。</p>
     </details>

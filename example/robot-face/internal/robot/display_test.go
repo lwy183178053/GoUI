@@ -10,17 +10,18 @@ import (
 
 func text(value string) *string { return &value }
 
-func TestDisplayReplacementAppendAndStatusDoNotChangeEmotion(t *testing.T) {
+func TestDisplayReplacementAndAppendShareOneArea(t *testing.T) {
 	controller, _ := testRobot(t)
 	before := controller.Emotion()
 	for _, test := range []struct {
 		update DisplayUpdate
 		want   DisplayState
 	}{
-		{DisplayUpdate{Text: text("你好"), Status: text("speaking")}, DisplayState{Text: "你好", Status: "speaking"}},
-		{DisplayUpdate{Append: text("，我正在回答。")}, DisplayState{Text: "你好，我正在回答。", Status: "speaking"}},
-		{DisplayUpdate{Status: text("listening")}, DisplayState{Text: "你好，我正在回答。", Status: "listening"}},
-		{DisplayUpdate{Text: text(""), Status: text("idle")}, DisplayState{Status: "idle"}},
+		{DisplayUpdate{Text: text("正在倾听…")}, DisplayState{Text: "正在倾听…"}},
+		{DisplayUpdate{Text: text("正在思考…")}, DisplayState{Text: "正在思考…"}},
+		{DisplayUpdate{Text: text("你好")}, DisplayState{Text: "你好"}},
+		{DisplayUpdate{Append: text("，我正在回答。")}, DisplayState{Text: "你好，我正在回答。"}},
+		{DisplayUpdate{Text: text("")}, DisplayState{}},
 	} {
 		got, err := controller.SetDisplay(context.Background(), test.update)
 		if err != nil || got != test.want || controller.Display() != test.want {
@@ -36,7 +37,7 @@ func TestDisplayRejectsInvalidUpdatesAndKeepsState(t *testing.T) {
 	controller, _ := testRobot(t)
 	before := controller.Display()
 	for _, update := range []DisplayUpdate{
-		{}, {Text: text("a"), Append: text("b")}, {Status: text("unknown")},
+		{}, {Text: text("a"), Append: text("b")},
 		{Text: text(strings.Repeat("字", MaxTextLength+1))}, {Text: text(string([]byte{0xff}))},
 	} {
 		if _, err := controller.SetDisplay(context.Background(), update); !errors.Is(err, ErrInvalidInput) {
@@ -72,8 +73,8 @@ func TestDisplayConcurrentAppendDoesNotLoseChunks(t *testing.T) {
 
 func TestTextSurvivesExpressionSourceSwitch(t *testing.T) {
 	controller, _ := testRobot(t)
-	want := DisplayState{Text: "这段回答在切换表情后仍保留", Status: "speaking"}
-	if _, err := controller.SetDisplay(context.Background(), DisplayUpdate{Text: text(want.Text), Status: text(want.Status)}); err != nil {
+	want := DisplayState{Text: "这段文字在切换表情后仍保留"}
+	if _, err := controller.SetDisplay(context.Background(), DisplayUpdate{Text: text(want.Text)}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := controller.SetEmotion(context.Background(), Vector{4, 4}); err != nil {

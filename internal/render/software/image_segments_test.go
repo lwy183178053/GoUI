@@ -259,7 +259,11 @@ func TestRobotThinkingLoopsUntilFinishAndCaptionIsTransparent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer renderer.Close()
-	if doc.Find("caption").Color.A != 0 {
+	caption, face := doc.Find("caption"), doc.Find("face")
+	if caption == nil || caption.Kind != ui.Text || len(face.Children) != 1 || face.Children[0] != caption {
+		t.Fatal("机器人页面应只用一个直接位于 Image 下的 Text 显示所有文字")
+	}
+	if caption.Color.A != 0 {
 		t.Fatal("字幕背景必须透明")
 	}
 	if err := renderer.SetImageSource("face", "gif/ponder_[0s,1.52s].gif"); err != nil {

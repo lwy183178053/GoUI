@@ -19,13 +19,14 @@ func TestDisplayHTTPAPI(t *testing.T) {
 		return response
 	}
 	for _, test := range []struct {
-		body         string
-		text, status string
+		body string
+		text string
 	}{
-		{`{"text":"你好","status":"speaking"}`, "你好", "speaking"},
-		{`{"append":"，这是实时回答。"}`, "你好，这是实时回答。", "speaking"},
-		{`{"status":"listening"}`, "你好，这是实时回答。", "listening"},
-		{`{"text":"","status":"idle"}`, "", "idle"},
+		{`{"text":"正在倾听…"}`, "正在倾听…"},
+		{`{"text":"正在思考…"}`, "正在思考…"},
+		{`{"text":"你好"}`, "你好"},
+		{`{"append":"，这是实时回答。"}`, "你好，这是实时回答。"},
+		{`{"text":""}`, ""},
 	} {
 		response := request(http.MethodPost, "/api/display", test.body)
 		var body struct {
@@ -34,7 +35,7 @@ func TestDisplayHTTPAPI(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 			t.Fatal(err)
 		}
-		if response.Code != http.StatusOK || body.Current.Text != test.text || body.Current.Status != test.status {
+		if response.Code != http.StatusOK || body.Current.Text != test.text {
 			t.Fatalf("显示接口返回不正确：%d %s", response.Code, response.Body.String())
 		}
 	}
@@ -45,7 +46,7 @@ func TestDisplayHTTPAPI(t *testing.T) {
 	before := controller.Display()
 	for _, body := range []string{
 		"", "null", "{}", "[]", `{"text":3}`, `{"append":true}`,
-		`{"text":"a","append":"b"}`, `{"status":"unknown"}`, `{"extra":1}`,
+		`{"text":"a","append":"b"}`, `{"status":"listening"}`, `{"text":"a","status":"idle"}`, `{"extra":1}`,
 		`{"text":"a"} {}`, `{"text":"` + strings.Repeat("字", robot.MaxTextLength+1) + `"}`,
 		`{"text":"x"}` + strings.Repeat(" ", 64*1024),
 	} {

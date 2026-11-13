@@ -76,7 +76,7 @@ func run(uiDirectory, address string) error {
 		requestClose(app)
 	}()
 	log.Printf("Web 调试面板：http://localhost:%d；远程使用本机 IP 和同一端口", listener.Addr().(*net.TCPAddr).Port)
-	log.Print("POST /api/display 可更新回答文字和倾听、思考、说话状态")
+	log.Print("POST /api/display 用 text 替换文字或 append 追加片段；提示和回答共用同一区域")
 	log.Print("POST /api/emotion  请求示例：{\"valence\":4,\"arousal\":4}")
 
 	// 窗口循环保留在主 goroutine；HTTP 通过 Dispatch 提交组件更新。

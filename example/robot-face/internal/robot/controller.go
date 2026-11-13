@@ -23,9 +23,7 @@ type Controller struct {
 	current  EmotionState
 	display  DisplayState
 	face     *goui.Image
-	caption  *goui.Block
-	answer   *goui.Text
-	status   *goui.Text
+	caption  *goui.Text
 	dispatch func(context.Context, func(*goui.Page) error) error
 }
 
@@ -38,15 +36,7 @@ func New(page *goui.Page, dispatch func(context.Context, func(*goui.Page) error)
 	if err != nil {
 		return nil, err
 	}
-	caption, err := page.GetBlock("caption")
-	if err != nil {
-		return nil, err
-	}
-	answer, err := page.GetText("answer")
-	if err != nil {
-		return nil, err
-	}
-	status, err := page.GetText("status")
+	caption, err := page.GetText("caption")
 	if err != nil {
 		return nil, err
 	}
@@ -56,9 +46,8 @@ func New(page *goui.Page, dispatch func(context.Context, func(*goui.Page) error)
 		return nil, err
 	}
 	return &Controller{
-		face: face, caption: caption, answer: answer, status: status, dispatch: dispatch,
+		face: face, caption: caption, dispatch: dispatch,
 		current: EmotionState{Vector: initial, Expression: normal, Target: normal},
-		display: DisplayState{Status: "idle"},
 	}, nil
 }
 
@@ -96,7 +85,7 @@ func (c *Controller) SetEmotion(ctx context.Context, input Vector) (EmotionState
 	return result, nil
 }
 
-// showTarget 已在主循环中，直接换源；Image 子节点及底部回答不会被重建。
+// showTarget 已在主循环中，直接换源；Image 子节点及底部文字不会被重建。
 func (c *Controller) showTarget(*goui.Page) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

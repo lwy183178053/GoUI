@@ -22,11 +22,11 @@ canvas { display: block; width: 100%; height: auto; }
 .horizontal { text-align: center; margin: 6px 0 16px; }
 .matrix { display: grid; grid-template-columns: 16px repeat(5, minmax(0, 1fr)); gap: 5px; }
 .tick { display: grid; place-items: center; color: var(--muted); font: 11px Consolas, monospace; }
-button, input, select, textarea { font: inherit; color: inherit; }
+button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: 1px solid #eaeaea; border-radius: 4px; background: #f7f6f3; padding: 8px 12px; white-space: nowrap; }
 button:hover { background: #eeede8; }
 button:disabled { cursor: wait; }
-button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #7c9fae; outline-offset: 2px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #7c9fae; outline-offset: 2px; }
 .cell { padding: 10px 1px; min-height: 47px; background: #fbfbfa; font-size: 12px; }
 .cell[aria-pressed="true"] { border-color: #3b555f; }
 .cell.is-match { background: var(--blue); color: #1f6c9f; }
@@ -34,16 +34,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .primary:hover { background: #3b3e38; }
 .vector-form { display: flex; gap: 10px; align-items: end; }
 .vector-form label { color: var(--muted); font-size: 12px; flex: 1; min-width: 0; }
-input, select, textarea { padding: 8px 10px; background: #fbfbfa; border: 1px solid #eaeaea; border-radius: 4px; min-width: 0; }
+input, textarea { padding: 8px 10px; background: #fbfbfa; border: 1px solid #eaeaea; border-radius: 4px; min-width: 0; }
 .vector-form input { display: block; width: 100%; margin-top: 4px; }
 .display-panel { margin-top: 20px; }
 .display-editor { display: grid; gap: 12px; }
 textarea { width: 100%; line-height: 1.8; resize: vertical; }
 .display-actions, .display-append { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.display-actions select { margin-right: auto; }
 .display-append { margin-top: 12px; }
 .display-append input { flex: 1; }
-.device-text { margin-top: 12px; max-height: 140px; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); }
 summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .api-section { margin-top: 20px; padding: 14px 0; border-top: 1px solid #eaeaea; }
 .api-section p { color: var(--muted); font-size: 12px; margin-top: 12px; }

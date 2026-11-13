@@ -19,7 +19,7 @@ go run .
 go build -o GoUI.exe .
 ```
 
-机器人 GIF 表情示例在 `example/robot-face/` 中，同样在该目录执行 `go run .`。设备用单个 Image 显示表情，底部 Text 显示回答和倾听等状态；浏览器打开 `http://localhost:8080/` 可用 每轴 0～4 的 5×5 坐标调试，也可以通过 Gin 的 `POST /api/emotion` 控制表情、`POST /api/display` 更新文字与状态。具体调用和 Linux 部署见该示例的 README。
+机器人 GIF 表情示例在 `example/robot-face/` 中，同样在该目录执行 `go run .`。设备用单个 Image 显示表情，底部只有一个 Text，所有回答和提示都显示在这里；浏览器打开 `http://localhost:8080/` 可用 每轴 0～4 的 5×5 坐标调试，也可以通过 Gin 的 `POST /api/emotion` 控制表情、`POST /api/display` 替换或追加文字。具体调用和 Linux 部署见该示例的 README。
 
 `GoUI.exe` 运行时需要同目录下的 `ui/` 资源目录。示例通过 `goui.Open("./ui")` 加载它，因此从项目目录启动程序。
 
@@ -196,9 +196,9 @@ return face.Finish(func(*goui.Page) error {
 - `example/hello-world/`：可直接运行的独立 Go 项目示例。
 - `example/hello-world/main.go`：示例业务入口和按钮事件绑定。
 - `example/hello-world/ui/`：示例 `config.xml`、`main.xml`、组件、字体和图片资源。
-- `example/robot-face/`：独立机器人 GIF 表情示例，1080×720 黑底窗口，单个 Image 按需播放 23 张 GIF，提供二维坐标、文字状态接口和 Web 调试面板。
+- `example/robot-face/`：独立机器人 GIF 表情示例，1080×720 黑底窗口，单个 Image 按需播放 23 张 GIF，提供二维坐标、统一文字接口和 Web 调试面板。
 - `example/robot-face/main.go`：机器人项目启动入口、HTTP 与窗口生命周期。
-- `example/robot-face/internal/robot/`：项目自己的情绪坐标、表情切换、回答文字和交互状态，不属于 GoUI 框架。
+- `example/robot-face/internal/robot/`：项目自己的情绪坐标、表情切换和统一文字显示，不属于 GoUI 框架。
 - `example/robot-face/internal/httpapi/`：项目自己的 Gin 接口、输入校验、Web 面板与测试。
 - `example/robot-face/internal/httpapi/web/`：无需前端工具链的调试网页，包含实际 UI 帧预览、5×5 表情、文字、状态与模拟流式输出控件。
 - `example/robot-face/internal/testui/`：仅供示例测试使用的小尺寸资源。

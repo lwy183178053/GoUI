@@ -1,6 +1,6 @@
-# 机器人表情与回答示例
+# 机器人表情与文字示例
 
-这是一个独立 Go 项目。屏幕上的一个 Image 播放当前 GIF，内部的 Text 在底部显示回答和倾听、思考等状态；Gin 提供表情和文字接口，浏览器提供调试面板。
+这是一个独立 Go 项目。屏幕上的一个 Image 播放当前 GIF，内部只有一个 Text，在底部显示所有文字。回答、“正在倾听…”、“正在思考…”等提示都直接写入同一处；Gin 提供表情和文字接口，浏览器提供调试面板。
 
 ## 启动
 
@@ -28,7 +28,7 @@ robot-face/
     robot/
       controller.go           # 绑定页面组件，提交向量，完成回正后换源
       emotion.go              # 情绪坐标、23 张素材的登记表与最近选择
-      display.go              # 回答全文、增量追加、倾听等交互状态
+      display.go              # 唯一文字区域的内容替换与增量追加
       *_test.go               # 表情、文字和并发更新测试
     httpapi/
       server.go               # Gin 路由与内嵌网页
@@ -41,20 +41,20 @@ robot-face/
         index.html            # 调试页面
         styles.css            # 桌面与手机布局
         app.js                # 表情向量控件和状态轮询
-        display.js            # 回答、交互状态、模拟流式输出
+        display.js            # 文字编辑、增量追加、模拟流式输出
         preview.js            # 串行获取屏幕画面，更新固定 Canvas
     testui/
       fixture.go              # 测试专用的小型 GIF 和字体，不参与程序运行
   ui/
     config.xml                # 窗口与字体配置
-    main.xml                  # 一个 Image + 底部文字子节点
+    main.xml                  # 一个 Image + 一个底部 Text
     fonts/
     gif/                      # 原始素材；PDF 只作参考，不参与运行
 ```
 
 仓库根目录的 `page.go`、`image.go` 和 `internal/` 是 **GoUI 框架代码**。这里的 `internal/robot` 和 `internal/httpapi` 是 **项目业务代码**，只有本示例会使用。GoUI 不依赖 Gin，不定义情绪矩阵、倾听状态或大模型接口。
 
-框架负责 `Image.SetSource`、`Text.SetText`、分段播放、布局、绘制、窗口、`Application.Dispatch` 和 `Application.Snapshot`。项目负责“选择哪个 GIF”“回答显示什么”“何时进入倾听”，HTTP 层将请求交给项目控制器，再通过普通组件 API 更新页面。
+框架负责 `Image.SetSource`、`Text.SetText`、分段播放、布局、绘制、窗口、`Application.Dispatch` 和 `Application.Snapshot`。项目负责“选择哪个 GIF”“文字显示什么”，HTTP 层将请求交给项目控制器，再通过普通组件 API 更新页面。
 
 后续增加语音、设备控制等功能，可在此项目的 `internal/` 下新增对应功能目录，或在 `robot/` 扩展显示业务；不把业务塞进框架渲染器。
 
@@ -66,15 +66,14 @@ robot-face/
 <ui color="#000000">
   <image id="face" size="-1,-1" fit="contain" playback="segmented"
     src="gif/smile_[0.5s].gif">
-    <!-- 实际文件中包含底部 caption Block、status 和 answer Text。 -->
-    <text id="answer" anchor="0,1" pivot="0,1" size="-1,100"
-      position="0,-20" margin="40,0,40,0" font-size="28"
+    <text id="caption" anchor="0,1" pivot="0,1" size="-1,120"
+      position="0,-24" margin="40,0,40,0" visible="false" font-size="28"
       align="center" valign="bottom" wrap="true" />
   </image>
 </ui>
 ```
 
-Image 继承 Block 的坐标空间，子节点以它的完整布局矩形为参考，先绘制图片再绘制文字。`contain` 的留白不会缩放子节点，圆角也不裁子树。底部回答为空且状态为 `idle` 时，整个字幕区域隐藏。
+Image 继承 Block 的坐标空间，子节点以它的完整布局矩形为参考，先绘制图片再绘制文字。`contain` 的留白不会缩放子节点，圆角也不裁子树。所有文字共用 `caption`，背景完全透明；文字为空时自动隐藏。提示和回答会相互替换，不会分成上下两行独立显示。
 
 项目只保存 23 个文件名和坐标。启动只解码初始 `src`；切换时调用 `face.SetSource("gif/目标文件.gif")`，框架才读取目标。读取、校验成功后才替换，旧素材、播放画布和待完成回调不再保留；不会建立全部 GIF 的全局缓存。换源时，原有文字组件不重建、不清空。
 
@@ -140,55 +139,52 @@ curl -X POST http://127.0.0.1:8080/api/emotion \
   -d '{"valence":4,"arousal":4}'
 ```
 
-## 回答文字和交互状态接口
+## 文字接口
 
-`POST /api/display` 只修改提供的字段，不会强制改变表情。`GET /api/display` 读取同样的显示状态。
+`POST /api/display` 更新唯一的文字区域，不会强制改变表情。`GET /api/display` 读取当前文字。
 
 | 字段 | 用法 |
 | --- | --- |
-| `text` | 替换回答全文；空字符串清空回答 |
-| `append` | 将新片段追加到当前回答，供模型增量输出使用 |
-| `status` | `idle`、`listening`、`thinking`、`speaking` |
+| `text` | 替换全部文字；空字符串清空并隐藏 |
+| `append` | 将新片段追加到当前文字，供模型增量输出使用 |
 
-至少提供一项；`text` 和 `append` 不能同时出现。状态可单独修改，省略的字段保留原值。累计回答最多 8192 个 Unicode 字符，POST 请求体最多 64 KiB。
+两项必须且只能提供一项。提示、回答和其它文字都使用这两个字段，不另外定义状态字段。累计文字最多 8192 个 Unicode 字符，POST 请求体最多 64 KiB。
 
-正常调用顺序：
+需要提示时直接发送普通文字：
 
 ```json
-{"text":"","status":"listening"}
+{"text":"正在倾听…"}
 ```
 
 ```json
-{"status":"thinking"}
+{"text":"正在思考…"}
 ```
+
+开始回答时，用第一段回答替换之前的提示：
 
 ```json
-{"text":"","status":"speaking"}
+{"text":"你好，"}
 ```
 
-模型每生成一个片段，就按顺序发送一条请求并等待成功，再发送下一条：
-
-```json
-{"append":"你好，"}
-```
+后续片段按生成顺序追加，等待上一条请求成功后再发送下一条：
 
 ```json
 {"append":"今天天气很好。"}
 ```
 
-回答结束后隐藏状态文字，保留回答：
+回答结束后保留当前文字，不需要额外请求。要清空时发送：
 
 ```json
-{"status":"idle"}
+{"text":""}
 ```
 
 成功响应示例：
 
 ```json
-{"current":{"text":"你好，今天天气很好。","status":"idle"}}
+{"current":{"text":"你好，今天天气很好。"}}
 ```
 
-这是连续提交片段的 HTTP 接口，项目不接入具体大模型服务，不自动生成文字。并行客户端按窗口主循环实际接收的顺序追加；单次回答应由调用方按生成顺序发送。长回答在底部区域显示末尾几行，以便看到最新输出；完整内容可通过 GET 或 Web 面板读取。新一轮倾听不会隐式清空旧回答，需要同时传 `text:""`。
+这是连续提交片段的 HTTP 接口，项目不接入具体大模型服务，不自动生成文字。并行客户端按窗口主循环实际接收的顺序追加；单次回答应由调用方按生成顺序发送。长文字在底部区域显示末尾几行，以便看到最新输出；完整内容可通过 GET 或 Web 面板读取。切换表情不会清空文字。
 
 Windows PowerShell 例子：
 
@@ -196,10 +192,10 @@ Windows PowerShell 例子：
 Invoke-RestMethod -Method Post `
   -Uri 'http://127.0.0.1:8080/api/display' `
   -ContentType 'application/json; charset=utf-8' `
-  -Body '{"text":"你好，我在听。","status":"listening"}'
+  -Body '{"text":"你好，我在听。"}'
 ```
 
-两类接口的错误响应均为 `{"error":"错误说明"}`：输入错误返回 `400`，窗口不可用返回 `503`，等待主循环超过 3 秒返回 `504`。非法输入保留原状态。
+两类接口的错误响应均为 `{"error":"错误说明"}`：输入错误返回 `400`，窗口不可用返回 `503`，等待主循环超过 3 秒返回 `504`。非法输入保留原内容。
 
 ## Web 调试
 
@@ -208,9 +204,9 @@ Invoke-RestMethod -Method Post `
 - 前端完整解码新帧后覆盖同一个 Canvas，失败保留上一帧，切换动作不刷新页面、不清空画布。
 - 最多约 20 次/秒串行取帧，预览宽度最多 640px、JPEG 品质 85；保持窗口画面比例。与设备使用同一播放进度，但受采样和网络影响有少量延迟，并不保证逐帧、同一时刻完全一致。
 - 设备状态每 0.5 秒读取一次，文字状态每秒读取。页面隐藏时暂停预览取帧，关闭网页后不再有预览开销。
-- 底部文字背景完全透明。回答为空且状态为 idle 时隐藏字幕区域。
+- 设备上只有一个底部 Text，背景完全透明，内容为空时隐藏。
 - 额外的增量追加、模拟流式回答收在“增量输出测试”里；模拟仍按每段 8 字符顺序提交。
-- 文字和状态分别保留未提交的草稿；追加片段或后台轮询不会覆盖草稿。模拟流式输出失败时保留完整原文，便于再次发送。提交全文、清空或流式输出成功后，再与设备结果同步。
+- 文字输入框保留未提交的草稿；追加片段或后台轮询不会覆盖草稿。模拟流式输出失败时保留完整原文，便于再次发送。提交全文、清空或流式输出成功后，再与设备结果同步。
 - 网页编进程序，不使用外部 CDN 或前端构建工具。
 
 `Application.Snapshot(ctx)` 是框架的通用截图能力，复制已绘制的 RGBA 帧，不重新推进动画。它内部会调用 Dispatch，只在 HTTP 等外部 goroutine 中调用；不要再套一层 Dispatch。预览缩放、JPEG 编码和 Canvas 控件都留在机器人项目，框架不包含 Web 协议。
