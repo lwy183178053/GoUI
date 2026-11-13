@@ -1,4 +1,4 @@
-/* 页面只保留屏幕、矩阵和文字控制，不为轮询结果重建布局。 */
+/* 页面只保留屏幕、表情和文字控制，不为轮询结果重建布局。 */
 :root { color-scheme: light; --ink: #252824; --muted: #777b75; --line: #eaeaea; --blue: #e1f3fe; }
 * { box-sizing: border-box; }
 body { margin: 0; background: #f7f6f3; color: var(--ink); font: 14px/1.6 "Segoe UI", "Microsoft YaHei", sans-serif; }
@@ -10,7 +10,7 @@ h2 { margin: 0; font-size: 15px; font-weight: 600; }
 p { margin: 0; }
 .caption { color: var(--muted); font-size: 12px; }
 .dashboard { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; align-items: start; }
-.panel { background: #fff; border: 1px solid #eaeaea; border-radius: 8px; padding: 20px; min-width: 0; }
+.panel { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 20px; min-width: 0; }
 .heading { margin-bottom: 16px; }
 .preview { background: #000; border-radius: 4px; overflow: hidden; }
 canvas { display: block; width: 100%; height: auto; }
@@ -19,13 +19,13 @@ canvas { display: block; width: 100%; height: auto; }
 .message { color: var(--muted); font-size: 12px; margin-top: 10px; min-height: 20px; overflow-wrap: anywhere; }
 [data-error="true"], [data-status="disconnected"] { color: #9f2f2d; }
 button, input, textarea { font: inherit; color: inherit; }
-button { cursor: pointer; border: 1px solid #eaeaea; border-radius: 4px; background: #f7f6f3; padding: 8px 12px; white-space: nowrap; }
+button { cursor: pointer; border: 1px solid var(--line); border-radius: 4px; background: #f7f6f3; padding: 8px 12px; white-space: nowrap; }
 button:hover { background: #eeede8; }
 button:disabled { cursor: wait; }
 button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #7c9fae; outline-offset: 2px; }
 .primary { background: #252824; color: #fff; border-color: #252824; }
 .primary:hover { background: #3b3e38; }
-input, textarea { padding: 8px 10px; background: #fbfbfa; border: 1px solid #eaeaea; border-radius: 4px; min-width: 0; }
+textarea { padding: 8px 10px; background: #fbfbfa; border: 1px solid var(--line); border-radius: 4px; min-width: 0; }
 .play-options { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 6px; }
 .play-options label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .play-options input { margin: 0; accent-color: #252824; }
@@ -38,7 +38,7 @@ input, textarea { padding: 8px 10px; background: #fbfbfa; border: 1px solid #eae
 textarea { width: 100%; line-height: 1.8; resize: vertical; }
 .display-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 summary { cursor: pointer; color: var(--muted); font-size: 12px; }
-.api-section { margin-top: 20px; padding: 14px 0; border-top: 1px solid #eaeaea; }
+.api-section { margin-top: 20px; padding: 14px 0; border-top: 1px solid var(--line); }
 .api-section p { color: var(--muted); font-size: 12px; margin-top: 12px; }
 pre { overflow-x: auto; font: 12px/1.7 Consolas, monospace; padding: 12px; background: #eeede8; border-radius: 4px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

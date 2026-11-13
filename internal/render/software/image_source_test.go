@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"image/gif"
 	"image/png"
+	"io/fs"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -15,7 +16,18 @@ import (
 	"golang.org/x/image/font/gofont/goregular"
 )
 
-func sourceRenderer(t *testing.T) (*Renderer, *ui.Document) {
+// imageReadFS 记录真实资源读取，验证未使用的图片不会被提前加载。
+type imageReadFS struct {
+	fs.FS
+	reads map[string]int
+}
+
+func (files *imageReadFS) Open(name string) (fs.File, error) {
+	files.reads[name]++
+	return files.FS.Open(name)
+}
+
+func sourceRenderer(t *testing.T) (*Renderer, *ui.Document, *imageReadFS) {
 	t.Helper()
 	palette := color.Palette{color.Black, color.White}
 	one := image.NewPaletted(image.Rect(0, 0, 1, 1), palette)
@@ -39,7 +51,8 @@ func sourceRenderer(t *testing.T) (*Renderer, *ui.Document) {
 		"static.png":       {Data: pngData.Bytes()},
 		"broken.gif":       {Data: []byte("not an image")},
 	}
-	doc, err := ui.LoadFS(files)
+	resources := &imageReadFS{FS: files, reads: make(map[string]int)}
+	doc, err := ui.LoadFS(resources)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,14 +61,14 @@ func sourceRenderer(t *testing.T) (*Renderer, *ui.Document) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = renderer.Close() })
-	return renderer, doc
+	return renderer, doc, resources
 }
 
 func TestImageSourceLoadsOnlySelectedResourceAndKeepsChildren(t *testing.T) {
-	renderer, doc := sourceRenderer(t)
-	for _, resource := range doc.Resources {
-		if resource == "next_[0.1s].gif" || resource == "broken.gif" {
-			t.Fatal("启动时不应加载候选素材")
+	renderer, doc, resources := sourceRenderer(t)
+	for _, filename := range []string{"next_[0.1s].gif", "static.png", "broken.gif"} {
+		if resources.reads[filename] != 0 {
+			t.Fatalf("未使用的图片被提前读取：%s", filename)
 		}
 	}
 	frameFor(t, renderer, 8, 8)
@@ -67,6 +80,9 @@ func TestImageSourceLoadsOnlySelectedResourceAndKeepsChildren(t *testing.T) {
 	children := doc.Find("face").Children
 	if err := renderer.SetImageSource("face", "next_[0.1s].gif"); err != nil {
 		t.Fatal(err)
+	}
+	if resources.reads["next_[0.1s].gif"] != 1 {
+		t.Fatal("换源时应只读取一次目标资源")
 	}
 	node := doc.Find("face")
 	if old.decoder != nil || old.exit != nil || len(renderer.imagePlayers) != 1 {
@@ -85,13 +101,13 @@ func TestImageSourceLoadsOnlySelectedResourceAndKeepsChildren(t *testing.T) {
 	if err := renderer.SetImageSource("face", "next_[0.1s].gif"); err != nil {
 		t.Fatal(err)
 	}
-	if renderer.imagePlayers[node] == current {
+	if renderer.imagePlayers[node] == current || resources.reads["next_[0.1s].gif"] != 2 {
 		t.Fatal("同一路径也应明确重新加载")
 	}
 }
 
 func TestImageSourceFailureLeavesOldPlaybackAndTextUntouched(t *testing.T) {
-	renderer, doc := sourceRenderer(t)
+	renderer, doc, _ := sourceRenderer(t)
 	frameFor(t, renderer, 8, 8)
 	node := doc.Find("face")
 	old, player := node.Image, renderer.imagePlayers[node]
@@ -111,7 +127,7 @@ func TestImageSourceFailureLeavesOldPlaybackAndTextUntouched(t *testing.T) {
 }
 
 func TestGIFSourceSwitchFromFinishCallbackDrawsNewFirstFrame(t *testing.T) {
-	renderer, doc := sourceRenderer(t)
+	renderer, doc, _ := sourceRenderer(t)
 	frameFor(t, renderer, 8, 8)
 	if err := renderer.FinishImage("face", func() error {
 		return renderer.SetImageSource("face", "next_[0.1s].gif")
@@ -128,7 +144,7 @@ func TestGIFSourceSwitchFromFinishCallbackDrawsNewFirstFrame(t *testing.T) {
 }
 
 func TestImageSourceCanSwitchBetweenStaticAndAnimated(t *testing.T) {
-	renderer, doc := sourceRenderer(t)
+	renderer, doc, _ := sourceRenderer(t)
 	node := doc.Find("face")
 	// auto 模式允许静态图和普通 GIF 互换，分段模式继续要求带参数的 GIF。
 	node.Image.Playback = "auto"

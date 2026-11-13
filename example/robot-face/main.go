@@ -71,11 +71,9 @@ func run(uiDirectory, address string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	effectsCtx, stopEffects := context.WithCancel(ctx)
-	defer stopEffects()
 	effectsErrors := make(chan error, 1)
 	go func() {
-		err := controller.RunEffects(effectsCtx)
+		err := controller.RunEffects(ctx)
 		effectsErrors <- err
 		if err != nil {
 			requestClose(app)
@@ -91,7 +89,7 @@ func run(uiDirectory, address string) error {
 
 	// 窗口循环保留在主 goroutine；HTTP 通过 Dispatch 提交组件更新。
 	windowErr := app.Run()
-	stopEffects()
+	stop()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	shutdownErr := server.Shutdown(shutdownCtx)

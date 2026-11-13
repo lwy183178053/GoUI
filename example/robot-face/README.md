@@ -42,6 +42,7 @@ robot-face/
       web/
         index.html            # 调试页面
         styles.css            # 桌面和手机布局
+        api.js                # 文字与表情共用的 JSON 请求与错误处理
         app.js                # 名称按钮、循环/打断选项和状态轮询
         display.js            # 完整句子发送、清空与显示进度
         preview.js            # 串行获取真实画面，更新固定 Canvas

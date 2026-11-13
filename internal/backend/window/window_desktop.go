@@ -25,7 +25,7 @@ func Displays() ([]Display, error) {
 	return result, nil
 }
 
-func (p *presenter) Run(source backend.FrameSource, onReady func() error) error {
+func (p *presenter) Run(source backend.FrameSource) error {
 	monitors := ebiten.AppendMonitors(nil)
 	if err := validateDisplayIndex(p.options.Display, len(monitors)); err != nil {
 		return err
@@ -63,7 +63,7 @@ func (p *presenter) Run(source backend.FrameSource, onReady func() error) error 
 	ebiten.SetWindowClosingHandled(true)
 	defer ebiten.SetWindowClosingHandled(false)
 
-	game := &preview{source: source, onReady: onReady, closeRequested: &p.closeRequested}
+	game := &preview{source: source, closeRequested: &p.closeRequested}
 	defer game.close()
 	err = ebiten.RunGame(game)
 	if errors.Is(err, errWindowClosed) {
@@ -96,12 +96,10 @@ func (p *presenter) Close() error {
 
 type preview struct {
 	source         backend.FrameSource
-	onReady        func() error
 	frame          *image.RGBA
 	texture        *ebiten.Image
 	err            error
 	mouseDown      bool
-	ready          bool
 	closeRequested *atomic.Bool
 }
 
@@ -111,15 +109,6 @@ func (g *preview) Update() error {
 	}
 	if ebiten.IsWindowBeingClosed() || (g.closeRequested != nil && g.closeRequested.Load()) {
 		return errWindowClosed
-	}
-	if !g.ready {
-		g.ready = true
-		if g.onReady != nil {
-			if err := g.onReady(); err != nil {
-				g.err = err
-				return err
-			}
-		}
 	}
 	if updater, ok := g.source.(backend.Updater); ok {
 		if err := updater.Update(); err != nil {

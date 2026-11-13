@@ -218,7 +218,7 @@ return face.Finish(func(*goui.Page) error {
 - `example/robot-face/internal/robot/effects.go`、`effects_test.go`：随机眨眼与逐字显示共用的可取消等待循环、过期通知检查。
 - `example/robot-face/internal/robot/display.go`、`display_test.go`：完整句子输入、打字机进度、新句子替换与清空。
 - `example/robot-face/internal/httpapi/`：项目自己的 Gin 接口、输入校验、Web 面板与测试。
-- `example/robot-face/internal/httpapi/web/`：无需前端工具链的调试网页，包含实际 UI 帧预览、表情名称按钮、循环/打断选项、完整句子发送、清空与打字进度。
+- `example/robot-face/internal/httpapi/web/`：无需前端工具链的调试网页；`api.js` 统一 JSON 请求，`app.js` 管理表情，`display.js` 管理文字，`preview.js` 采样实际 UI 帧。
 - `example/robot-face/internal/testui/`：仅供示例测试使用的小尺寸资源。
 - `example/robot-face/ui/`：表情与底部文字页面、窗口配置和原始素材。
 

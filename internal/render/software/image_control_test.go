@@ -63,7 +63,7 @@ func TestGIFPlayLoopOverridesFiniteFileAndReplayCancelsOldCallback(t *testing.T)
 }
 
 func TestPlayCallbackPreparesReplacementFirstFrameAndReportsErrors(t *testing.T) {
-	renderer, doc := sourceRenderer(t)
+	renderer, doc, _ := sourceRenderer(t)
 	node := doc.Find("face")
 	node.Image.Playback, node.Image.Animation.Segments = "auto", nil
 	calls := 0

@@ -26,6 +26,7 @@ func New(controller *robot.Controller, capture func(context.Context) (*image.RGB
 		"/display.js": {"web/display.js", "text/javascript; charset=utf-8"},
 		"/preview.js": {"web/preview.js", "text/javascript; charset=utf-8"},
 		"/app.js":     {"web/app.js", "text/javascript; charset=utf-8"},
+		"/api.js":     {"web/api.js", "text/javascript; charset=utf-8"},
 	}
 	for route, asset := range assets {
 		data, err := webFiles.ReadFile(asset.file)

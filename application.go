@@ -118,5 +118,5 @@ func (app *Application) Run() error {
 		close(app.done)
 	}()
 	source := &applicationSource{Renderer: app.renderer, page: app.page, updates: app.updates}
-	return presenter.Run(source, nil)
+	return presenter.Run(source)
 }

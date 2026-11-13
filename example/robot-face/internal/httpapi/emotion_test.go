@@ -104,7 +104,7 @@ func TestEmotionHTTPAPI(t *testing.T) {
 		}
 	})
 	t.Run("内嵌网页和禁止原始素材路径", func(t *testing.T) {
-		for _, path := range []string{"/", "/styles.css", "/app.js", "/preview.js"} {
+		for _, path := range []string{"/", "/styles.css", "/api.js", "/app.js", "/display.js", "/preview.js"} {
 			response := request(http.MethodGet, path, "")
 			if response.Code != http.StatusOK || response.Body.Len() == 0 {
 				t.Errorf("静态文件 %s = %d", path, response.Code)

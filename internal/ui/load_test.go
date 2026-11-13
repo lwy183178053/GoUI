@@ -48,8 +48,11 @@ func TestLoadDocument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if doc.Directory != dir || len(doc.Fonts) != 1 || doc.Fonts["default"] == nil {
-		t.Fatalf("wrong directory or fonts: %#v", doc)
+	if len(doc.Fonts) != 1 || doc.Fonts["default"] == nil {
+		t.Fatalf("wrong fonts: %#v", doc.Fonts)
+	}
+	if doc.Root.Source.File != filepath.Join(dir, "main.xml") {
+		t.Fatalf("wrong XML source path: %q", doc.Root.Source.File)
 	}
 	if doc.Window != (WindowConfig{Backend: "desktop", Width: 960, Height: 640, Decorated: true}) {
 		t.Fatalf("wrong default window settings: %#v", doc.Window)
@@ -220,11 +223,8 @@ func TestLoadFSIncludesApplicationSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if doc.AppName != "Demo" || doc.Version != "2.3.4.5" || doc.Find("sample.panel") == nil {
-		t.Fatalf("embedded settings or component were not loaded: app=%q version=%q", doc.AppName, doc.Version)
-	}
-	if len(doc.Resources) != 2 || doc.Resources[0] != "fonts/default.ttf" || doc.Resources[1] != "component/card.xml" {
-		t.Fatalf("unexpected collected resource paths: %#v", doc.Resources)
+	if doc.AppName != "Demo" || doc.Version != "2.3.4.5" || doc.Find("sample.panel") == nil || doc.Fonts["default"] == nil {
+		t.Fatalf("application settings, fonts or component were not loaded: app=%q version=%q", doc.AppName, doc.Version)
 	}
 }
 

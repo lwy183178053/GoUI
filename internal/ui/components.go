@@ -7,11 +7,11 @@ import (
 )
 
 // expandChildren 在加载前展开组件文件，并给组件里的 ID 加实例名前缀。
-func expandChildren(fsys fs.FS, children []*element, xmlPath, namespace string, stack, names map[string]bool, sourceRoot string, doc *Document) ([]*element, error) {
+func expandChildren(fsys fs.FS, children []*element, xmlPath, namespace string, stack, names map[string]bool, sourceRoot string) ([]*element, error) {
 	var result []*element
 	for _, child := range children {
 		if child.name == "component" {
-			expanded, err := expandComponent(fsys, child, path.Dir(xmlPath), namespace, stack, names, sourceRoot, doc)
+			expanded, err := expandComponent(fsys, child, path.Dir(xmlPath), namespace, stack, names, sourceRoot)
 			if err != nil {
 				return nil, err
 			}
@@ -27,7 +27,7 @@ func expandChildren(fsys fs.FS, children []*element, xmlPath, namespace string, 
 				child.attrs["id"] = namespace + "." + id
 			}
 		}
-		children, err := expandChildren(fsys, child.children, xmlPath, namespace, stack, names, sourceRoot, doc)
+		children, err := expandChildren(fsys, child.children, xmlPath, namespace, stack, names, sourceRoot)
 		if err != nil {
 			return nil, err
 		}
@@ -37,7 +37,7 @@ func expandChildren(fsys fs.FS, children []*element, xmlPath, namespace string, 
 	return result, nil
 }
 
-func expandComponent(fsys fs.FS, reference *element, directory, namespace string, stack, names map[string]bool, sourceRoot string, doc *Document) ([]*element, error) {
+func expandComponent(fsys fs.FS, reference *element, directory, namespace string, stack, names map[string]bool, sourceRoot string) ([]*element, error) {
 	if err := reference.attributes("src", "name"); err != nil {
 		return nil, err
 	}
@@ -77,7 +77,6 @@ func expandComponent(fsys fs.FS, reference *element, directory, namespace string
 	if stack[componentPath] {
 		return nil, at(reference.source, "component cycle detected at %q", src)
 	}
-	doc.addResource(componentPath)
 	component, err := readXML(fsys, componentPath, sourceName(sourceRoot, componentPath))
 	if err != nil {
 		return nil, err
@@ -92,7 +91,7 @@ func expandComponent(fsys fs.FS, reference *element, directory, namespace string
 		return nil, err
 	}
 	stack[componentPath] = true
-	children, err := expandChildren(fsys, component.children, componentPath, instance, stack, names, sourceRoot, doc)
+	children, err := expandChildren(fsys, component.children, componentPath, instance, stack, names, sourceRoot)
 	delete(stack, componentPath)
 	return children, err
 }

@@ -59,6 +59,5 @@ func (d *Document) LoadImage(src, playback string, source Source) (*ImageStyle, 
 		}
 		style.Image = decoded
 	}
-	d.addResource(asset)
 	return style, nil
 }

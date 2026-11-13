@@ -152,6 +152,7 @@ func TestDispatchValidatesInputsAndRunningState(t *testing.T) {
 	if err := app.Dispatch(context.Background(), callback); err == nil {
 		t.Fatal("未启动的应用没有报错")
 	}
+	//lint:ignore SA1012 验证 Dispatch 明确拒绝 nil context。
 	if err := app.Dispatch(nil, callback); err == nil {
 		t.Fatal("nil context 没有报错")
 	}

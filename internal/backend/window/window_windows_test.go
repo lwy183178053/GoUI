@@ -12,40 +12,6 @@ type emptyFrameSource struct{}
 
 func (emptyFrameSource) Frame(int, int) (*image.RGBA, error) { return nil, nil }
 
-func TestPreviewCallsReadyOnce(t *testing.T) {
-	called := 0
-	game := &preview{
-		source: emptyFrameSource{},
-		onReady: func() error {
-			called++
-			return nil
-		},
-	}
-	if err := game.Update(); err != nil {
-		t.Fatal(err)
-	}
-	if err := game.Update(); err != nil {
-		t.Fatal(err)
-	}
-	if called != 1 {
-		t.Fatalf("ready callback called %d times, want once", called)
-	}
-}
-
-func TestPreviewStopsWhenReadyReturnsError(t *testing.T) {
-	want := errors.New("page initialization failed")
-	game := &preview{
-		source:  emptyFrameSource{},
-		onReady: func() error { return want },
-	}
-	if err := game.Update(); !errors.Is(err, want) {
-		t.Fatalf("Update returned %v, want %v", err, want)
-	}
-	if err := game.Update(); !errors.Is(err, want) {
-		t.Fatalf("second Update returned %v, want %v", err, want)
-	}
-}
-
 type updatingFrameSource struct {
 	emptyFrameSource
 	called int
@@ -70,5 +36,20 @@ func TestPreviewProcessesQueuedUpdates(t *testing.T) {
 	source.err = want
 	if err := game.Update(); !errors.Is(err, want) {
 		t.Fatalf("Update = %v，期望 %v", err, want)
+	}
+	if err := game.Update(); !errors.Is(err, want) || source.called != 2 {
+		t.Fatal("更新出错后应保持原错误，不继续执行排队任务")
+	}
+}
+
+func TestPreviewStopsAfterWindowCloseRequest(t *testing.T) {
+	window := &presenter{}
+	source := &updatingFrameSource{}
+	game := &preview{source: source, closeRequested: &window.closeRequested}
+	if err := window.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.Update(); !errors.Is(err, errWindowClosed) || source.called != 0 {
+		t.Fatal("关闭窗口后应直接退出，不再处理排队更新")
 	}
 }

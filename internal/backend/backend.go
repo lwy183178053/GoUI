@@ -12,7 +12,7 @@ type FrameSource interface {
 // Presenter 管理平台窗口和事件循环。窗口关闭时 Run 返回，
 // 窗口尺寸变化时会请求对应尺寸的画面。
 type Presenter interface {
-	Run(FrameSource, func() error) error
+	Run(FrameSource) error
 }
 
 // PointerHandler 接收鼠标移动和左键事件。

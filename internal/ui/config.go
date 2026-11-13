@@ -69,7 +69,7 @@ func loadConfig(config *element, fsys fs.FS, doc *Document) error {
 	if fonts == nil {
 		return at(config.source, "<config> requires exactly one <fonts> element")
 	}
-	fontsMap, err := loadFonts(fonts, fsys, doc)
+	fontsMap, err := loadFonts(fonts, fsys)
 	if err != nil {
 		return err
 	}
@@ -101,7 +101,7 @@ func loadApp(e *element) (appSettings, error) {
 	return appSettings{name: name, version: version}, nil
 }
 
-func loadFonts(fonts *element, fsys fs.FS, doc *Document) (map[string]*opentype.Font, error) {
+func loadFonts(fonts *element, fsys fs.FS) (map[string]*opentype.Font, error) {
 	if err := fonts.attributes(); err != nil {
 		return nil, err
 	}
@@ -146,7 +146,6 @@ func loadFonts(fonts *element, fsys fs.FS, doc *Document) (map[string]*opentype.
 		if err != nil {
 			return nil, at(entry.source, "parse font %q (%s): %w", name, src, err)
 		}
-		doc.addResource(asset)
 		result[name] = parsed
 	}
 	if _, exists := result["default"]; !exists {

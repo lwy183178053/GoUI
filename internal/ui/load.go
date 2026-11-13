@@ -17,12 +17,7 @@ func Load(directory string) (*Document, error) {
 	if err != nil {
 		return nil, at(Source{directory, 1, 1}, "resolve UI directory: %w", err)
 	}
-	doc, err := loadFS(os.DirFS(directory), directory)
-	if err != nil {
-		return nil, err
-	}
-	doc.Directory = directory
-	return doc, nil
+	return loadFS(os.DirFS(directory), directory)
 }
 
 // LoadFS 从文件系统根目录加载 config.xml、main.xml 和引用的资源。
@@ -39,9 +34,8 @@ func loadFS(fsys fs.FS, sourceRoot string) (*Document, error) {
 		Window: WindowConfig{
 			Backend: "desktop", Width: 960, Height: 640, Decorated: true,
 		},
-		files:       fsys,
-		nodes:       make(map[string]*Node),
-		resourceSet: make(map[string]struct{}),
+		files: fsys,
+		nodes: make(map[string]*Node),
 	}
 	config, err := readXML(fsys, "config.xml", sourceName(sourceRoot, "config.xml"))
 	if err != nil {
@@ -57,7 +51,7 @@ func loadFS(fsys fs.FS, sourceRoot string) (*Document, error) {
 	if main.name != "ui" {
 		return nil, at(main.source, "main.xml must have a <ui> root")
 	}
-	main.children, err = expandChildren(fsys, main.children, "main.xml", "", map[string]bool{"main.xml": true}, make(map[string]bool), sourceRoot, doc)
+	main.children, err = expandChildren(fsys, main.children, "main.xml", "", map[string]bool{"main.xml": true}, make(map[string]bool), sourceRoot)
 	if err != nil {
 		return nil, err
 	}

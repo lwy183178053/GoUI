@@ -116,27 +116,13 @@ type Node struct {
 
 // Document 保存已加载的界面和字体。节点树交给 Renderer 管理，更新时使用 Renderer 的方法。
 type Document struct {
-	Directory   string
-	AppName     string
-	Version     string
-	Window      WindowConfig
-	Resources   []string
-	Root        *Node
-	Fonts       map[string]*opentype.Font
-	files       fs.FS
-	nodes       map[string]*Node
-	resourceSet map[string]struct{}
+	AppName string
+	Version string
+	Window  WindowConfig
+	Root    *Node
+	Fonts   map[string]*opentype.Font
+	files   fs.FS
+	nodes   map[string]*Node
 }
 
 func (d *Document) Find(id string) *Node { return d.nodes[id] }
-
-func (d *Document) addResource(path string) {
-	if d.resourceSet == nil {
-		d.resourceSet = make(map[string]struct{})
-	}
-	if _, exists := d.resourceSet[path]; exists {
-		return
-	}
-	d.resourceSet[path] = struct{}{}
-	d.Resources = append(d.Resources, path)
-}
