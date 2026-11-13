@@ -4,30 +4,42 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	goui "github.com/lwy183178053/GoUI"
 )
 
-// EmotionState 区分当前表情和最新目标，回正期间两者可能不同。
+// ExpressionRequest 指定动作名称、是否循环，以及是否立即打断当前动作。
+type ExpressionRequest struct {
+	Name      string `json:"name"`
+	Loop      bool   `json:"loop"`
+	Interrupt bool   `json:"interrupt"`
+}
+
+// EmotionState 保存实际表情和一个待切换请求，不积压动作队列。
+// 正常表情始终按随机间隔眨眼，Loop 为 false。
 type EmotionState struct {
-	Vector        Vector     `json:"vector"`
-	Expression    Expression `json:"expression"`
-	Target        Expression `json:"target"`
-	Transitioning bool       `json:"transitioning"`
+	Expression Expression         `json:"expression"`
+	Loop       bool               `json:"loop"`
+	Pending    *ExpressionRequest `json:"pending,omitempty"`
 }
 
 // Controller 操作项目 XML 中的一个 Image 和底部文字，框架负责解码与绘制。
-// 组件通过 dispatch 在窗口主循环中修改；mu 只保护 HTTP 读取的业务状态。
+// 组件通过 dispatch 在窗口主循环中修改；mu 保护业务状态和眨眼计划。
 type Controller struct {
-	mu       sync.RWMutex
-	current  EmotionState
-	display  DisplayState
-	face     *goui.Image
-	caption  *goui.Text
-	dispatch func(context.Context, func(*goui.Page) error) error
+	mu         sync.RWMutex
+	current    EmotionState
+	display    DisplayState
+	generation uint64
+	blinkAt    time.Time
+	idleWake   chan struct{}
+	face       *goui.Image
+	caption    *goui.Text
+	dispatch   func(context.Context, func(*goui.Page) error) error
 }
 
-// New 绑定项目自己的组件，不预先加载其它候选 GIF。
+// New 绑定项目组件并播放一次正常眨眼，不预先加载其它候选 GIF。
+// 随机眨眼的等待由 RunIdle 管理，初始化不启动后台任务。
 func New(page *goui.Page, dispatch func(context.Context, func(*goui.Page) error) error) (*Controller, error) {
 	if dispatch == nil {
 		return nil, errors.New("机器人控制器需要页面调度函数")
@@ -40,62 +52,30 @@ func New(page *goui.Page, dispatch func(context.Context, func(*goui.Page) error)
 	if err != nil {
 		return nil, err
 	}
-	initial := Vector{Valence: 2, Arousal: 2}
-	normal, err := nearestExpression(initial)
-	if err != nil {
+	controller := &Controller{
+		face: face, caption: caption, dispatch: dispatch,
+		idleWake: make(chan struct{}, 1),
+		current:  EmotionState{Expression: expressions[0]},
+	}
+	if err := controller.playExpression(expressions[0], false); err != nil {
 		return nil, err
 	}
-	return &Controller{
-		face: face, caption: caption, dispatch: dispatch,
-		current: EmotionState{Vector: initial, Expression: normal, Target: normal},
-	}, nil
+	return controller, nil
 }
 
 // Emotion 返回当前表情状态的快照。
 func (c *Controller) Emotion() EmotionState {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.current
+	return c.emotionSnapshot()
 }
 
-// SetEmotion 提交向量；回正期间只替换最新目标，不排队播放旧目标。
-func (c *Controller) SetEmotion(ctx context.Context, input Vector) (EmotionState, error) {
-	next, err := nearestExpression(input)
-	if err != nil {
-		return EmotionState{}, err
+// emotionSnapshot 在持有 mu 时调用，避免调用方修改内部的待切换请求。
+func (c *Controller) emotionSnapshot() EmotionState {
+	state := c.current
+	if state.Pending != nil {
+		pending := *state.Pending
+		state.Pending = &pending
 	}
-	var result EmotionState
-	err = c.dispatch(ctx, func(*goui.Page) error {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		if !c.current.Transitioning && next.Name != c.current.Expression.Name {
-			if err := c.face.Finish(c.showTarget); err != nil {
-				return err
-			}
-			c.current.Transitioning = true
-		}
-		c.current.Vector = input
-		c.current.Target = next
-		result = c.current
-		return nil
-	})
-	if err != nil {
-		return EmotionState{}, err
-	}
-	return result, nil
-}
-
-// showTarget 已在主循环中，直接换源；Image 子节点及底部文字不会被重建。
-func (c *Controller) showTarget(*goui.Page) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if !c.current.Transitioning {
-		return nil
-	}
-	if err := c.face.SetSource("gif/" + c.current.Target.File); err != nil {
-		return err
-	}
-	c.current.Expression = c.current.Target
-	c.current.Transitioning = false
-	return nil
+	return state
 }

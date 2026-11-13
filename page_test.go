@@ -14,6 +14,8 @@ import (
 type testPageControls struct {
 	imageSource string
 	finish      func() error
+	play        func() error
+	playLoop    bool
 	kinds       map[string]ui.Kind
 	text        string
 	fill        color.NRGBA
@@ -52,6 +54,10 @@ func (p *testPageControls) SetDisabled(_ string, value bool) error {
 }
 func (p *testPageControls) SetImageSource(_ string, src string) error {
 	p.imageSource = src
+	return nil
+}
+func (p *testPageControls) PlayImage(_ string, loop bool, callback func() error) error {
+	p.playLoop, p.play = loop, callback
 	return nil
 }
 func (p *testPageControls) FinishImage(_ string, callback func() error) error {

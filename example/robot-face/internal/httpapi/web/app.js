@@ -1,80 +1,60 @@
 "use strict";
 
-// 状态轮询只修改已有控件，预览由 preview.js 独立更新。
+// 名称列表只创建一次；状态轮询修改已有控件，预览独立更新。
 (() => {
-  const matrix = document.querySelector("#matrix");
-  const form = document.querySelector("#vector-form");
-  const valence = document.querySelector("#valence");
-  const arousal = document.querySelector("#arousal");
+  const list = document.querySelector("#expressions");
+  const loop = document.querySelector("#loop");
+  const interrupt = document.querySelector("#interrupt");
   const message = document.querySelector("#message");
   const connection = document.querySelector("#connection");
-  let gridSize = 5;
+  const catalog = new Map();
+  let selectedName = "normal";
   let initialized = false;
   let sending = false;
   let revision = 0;
 
-  function inputLabel() {
-    document.querySelector("#vector-value").textContent = `[${valence.value}, ${arousal.value}]`;
+  function updateExample() {
+    document.querySelector("#api-example").textContent = JSON.stringify({
+      name: selectedName, loop: loop.checked, interrupt: interrupt.checked,
+    });
   }
 
   function buildControls(expressions) {
-    const anchors = new Map(expressions.map(item => [`${item.valence},${item.arousal}`, item]));
-    for (let y = gridSize - 1; y >= 0; y--) {
-      const tick = document.createElement("span");
-      tick.className = "tick";
-      tick.textContent = y;
-      matrix.append(tick);
-      for (let x = 0; x < gridSize; x++) {
-        const item = anchors.get(`${x},${y}`);
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "cell";
-        button.dataset.valence = x;
-        button.dataset.arousal = y;
-        button.dataset.expression = item?.name || "";
-        button.textContent = item?.label || "就近";
-        button.setAttribute("aria-label", `情绪值 ${x}，唤醒度 ${y}，${button.textContent}`);
-        button.addEventListener("click", () => sendVector(x, y));
-        matrix.append(button);
-      }
-    }
-    matrix.append(document.createElement("span"));
-    for (let x = 0; x < gridSize; x++) {
-      const tick = document.createElement("span");
-      tick.className = "tick";
-      tick.textContent = x;
-      matrix.append(tick);
+    for (const expression of expressions) {
+      catalog.set(expression.name, expression);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "expression";
+      button.dataset.name = expression.name;
+      button.textContent = expression.label;
+      button.title = expression.name;
+      button.addEventListener("click", () => sendExpression(expression.name));
+      list.append(button);
     }
     initialized = true;
   }
 
   function render(data) {
-    gridSize = data.grid_size;
-    if (!initialized) buildControls(data.expressions);
-    const {vector, expression, target, transitioning} = data.current;
+    const {expression, pending} = data.current;
     document.querySelector("#expression-name").textContent = expression.label;
     document.querySelector("#expression-code").textContent = expression.name;
-    document.querySelector("#playback-state").textContent = transitioning
-      ? `正在回正 → ${target.label}` : "保持或循环当前表情";
-    if (document.activeElement !== valence && document.activeElement !== arousal) {
-      valence.value = vector.valence;
-      arousal.value = vector.arousal;
-      inputLabel();
+    const nextLabel = pending ? catalog.get(pending.name)?.label || pending.name : "";
+    document.querySelector("#playback-state").textContent = pending
+      ? `本轮结束后 → ${nextLabel}`
+      : expression.name === "normal" ? "正常 · 每隔 2～5 秒随机眨眼"
+      : data.current.loop ? "持续循环" : "播放一次 · 结束后自动回正常";
+    for (const button of list.querySelectorAll("button")) {
+      button.setAttribute("aria-pressed", String(button.dataset.name === expression.name));
+      button.classList.toggle("is-pending", button.dataset.name === pending?.name);
     }
-    for (const button of matrix.querySelectorAll("button")) {
-      const selected = Number(button.dataset.valence) === vector.valence && Number(button.dataset.arousal) === vector.arousal;
-      button.setAttribute("aria-pressed", String(selected));
-      button.classList.toggle("is-match", button.dataset.expression === target.name);
-    }
-    message.textContent = `[${vector.valence}, ${vector.arousal}] → ${target.label}${transitioning ? " · 等待回正" : ""}`;
+    message.textContent = pending ? `正在播放${expression.label}，等待切换到${nextLabel}。` : `当前：${expression.label}。`;
     message.dataset.error = "false";
-    document.querySelector("#api-example").textContent = JSON.stringify(vector);
     connection.textContent = "设备已连接";
     connection.dataset.status = "connected";
   }
 
-  async function request(update) {
-    const response = await fetch("/api/emotion", {
+  async function request(path, update) {
+    const response = await fetch(path, {
       method: update === undefined ? "GET" : "POST",
       headers: {"Content-Type": "application/json"},
       body: update === undefined ? undefined : JSON.stringify(update),
@@ -92,36 +72,31 @@
     message.dataset.error = "true";
   }
 
-  async function sendVector(x, y) {
+  async function sendExpression(name) {
     if (sending) return;
-    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
-      message.textContent = "请输入 0～4 的整数。";
-      message.dataset.error = "true";
-      return;
-    }
+    selectedName = name;
+    updateExample();
     sending = true;
     ++revision;
-    try { render(await request({valence: x, arousal: y})); }
+    try { render(await request("/api/emotion", {name, loop: loop.checked, interrupt: interrupt.checked})); }
     catch (error) { showError(error); }
     finally { sending = false; }
   }
 
-  form.addEventListener("submit", event => {
-    event.preventDefault();
-    sendVector(Number(valence.value), Number(arousal.value));
-  });
-  valence.addEventListener("input", inputLabel);
-  arousal.addEventListener("input", inputLabel);
+  loop.addEventListener("change", updateExample);
+  interrupt.addEventListener("change", updateExample);
 
   async function poll() {
     if (!sending) {
       const started = revision;
       try {
-        const data = await request();
+        if (!initialized) buildControls((await request("/api/expressions")).expressions);
+        const data = await request("/api/emotion");
         if (started === revision) render(data);
       } catch (error) { if (started === revision) showError(error); }
     }
     setTimeout(poll, 500);
   }
+  updateExample();
   poll();
 })();

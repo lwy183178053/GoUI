@@ -8,15 +8,49 @@ import (
 	"github.com/lwy183178053/GoUI/internal/ui"
 )
 
-// FinishImage 在主循环中请求分段 GIF 回正，不阻塞调用者。
+// PlayImage 重播完整 GIF；时间推进和完成通知继续使用原有帧循环。
+func (r *Renderer) PlayImage(id string, loop bool, onDone func() error) error {
+	node, box, err := r.node(id)
+	if err != nil {
+		return err
+	}
+	player := r.imagePlayers[node]
+	if player == nil || player.animation.Segments != nil {
+		return fmt.Errorf("UI id %q is not an auto GIF image", id)
+	}
+	if loop && onDone != nil {
+		return fmt.Errorf("looping GIF cannot have a completion callback")
+	}
+	if !nodeVisible(r.document.Root, node) {
+		return fmt.Errorf("UI id %q is hidden", id)
+	}
+	var callback func() error
+	if onDone != nil {
+		callback = func() error {
+			if err := onDone(); err != nil {
+				return &ui.Error{Source: node.Source, Err: fmt.Errorf("play GIF %q: %w", node.Image.Source, err)}
+			}
+			return nil
+		}
+	}
+	player.play(loop, callback)
+	delete(r.images, node)
+	delete(r.layers, node)
+	if box != nil {
+		r.invalidate(box.Pixels)
+	}
+	return nil
+}
+
+// FinishImage 让当前 GIF 完成本轮；分段 GIF 继续沿原有规则回正。
 func (r *Renderer) FinishImage(id string, onDone func() error) error {
 	node, _, err := r.node(id)
 	if err != nil {
 		return err
 	}
 	player := r.imagePlayers[node]
-	if player == nil || player.animation.Segments == nil {
-		return fmt.Errorf("UI id %q is not a segmented GIF image", id)
+	if player == nil {
+		return fmt.Errorf("UI id %q is not a GIF image", id)
 	}
 	if onDone == nil {
 		return fmt.Errorf("image finish callback is required")

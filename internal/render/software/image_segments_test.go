@@ -239,17 +239,17 @@ func TestHiddenGIFCancelsAlreadyCollectedCompletion(t *testing.T) {
 	}
 }
 
-func TestAutoGIFRejectsFinish(t *testing.T) {
+func TestAutoGIFCanFinishCurrentRound(t *testing.T) {
 	node := gifImageNode(t)
 	node.ID = "auto"
 	renderer := rendererFor(t, node)
-	if err := renderer.FinishImage("auto", func() error { return nil }); err == nil {
-		t.Fatal("普通 GIF 不能调用分段回正")
+	if err := renderer.FinishImage("auto", func() error { return nil }); err != nil {
+		t.Fatalf("普通 GIF 也应支持完成本轮：%v", err)
 	}
 }
 
-// 思考素材从暂停改为首尾相接的完整循环，不修改 GIF 的帧延迟或其它暂停规则。
-func TestRobotThinkingLoopsUntilFinishAndCaptionIsTransparent(t *testing.T) {
+// 机器人按完整 GIF 播放，文件名的暂停参数不参与该示例。
+func TestRobotFullGIFPlaybackAndTransparentCaption(t *testing.T) {
 	doc, err := ui.Load(filepath.Join("..", "..", "..", "example", "robot-face", "ui"))
 	if err != nil {
 		t.Fatal(err)
@@ -266,32 +266,40 @@ func TestRobotThinkingLoopsUntilFinishAndCaptionIsTransparent(t *testing.T) {
 	if caption.Color.A != 0 {
 		t.Fatal("字幕背景必须透明")
 	}
-	if err := renderer.SetImageSource("face", "gif/ponder_[0s,1.52s].gif"); err != nil {
-		t.Fatal(err)
-	}
-	player := renderer.imagePlayers[doc.Find("face")]
-	start := time.Unix(100, 0)
-	for _, elapsed := range []time.Duration{0, 600 * time.Millisecond, 1200 * time.Millisecond, 1700 * time.Millisecond} {
-		if _, err := player.advance(start.Add(elapsed)); err != nil {
+	for _, name := range []string{"ponder_[0s,1.52s].gif", "music_[2.5s].gif", "badminton_[1.2s].gif"} {
+		if err := renderer.SetImageSource("face", "gif/"+name); err != nil {
 			t.Fatal(err)
 		}
-		if got, want := player.positionAt(elapsed), elapsed%player.duration; got != want {
-			t.Fatalf("思考应持续循环: %s != %s", got, want)
+		player := renderer.imagePlayers[face]
+		if player.animation.Segments != nil {
+			t.Fatal("机器人不应再使用文件名暂停点")
 		}
-	}
-	completed := false
-	if err := player.finish(start.Add(1700*time.Millisecond), func() error { completed = true; return nil }); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := player.advance(start.Add(3100 * time.Millisecond)); err != nil {
-		t.Fatal(err)
-	}
-	if callback := player.takeCompletion(); callback != nil {
-		if err := callback(); err != nil {
+		if err := renderer.PlayImage("face", true, nil); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if !completed {
-		t.Fatal("思考循环结束后应允许切换表情")
+		for _, elapsed := range []time.Duration{0, 3 * time.Second, 7 * time.Second} {
+			if got, want := player.positionAt(elapsed), elapsed%player.duration; got != want {
+				t.Fatalf("%s 应完整循环：%s != %s", name, got, want)
+			}
+		}
+		completed := false
+		if err := renderer.PlayImage("face", false, func() error { completed = true; return nil }); err != nil {
+			t.Fatal(err)
+		}
+		start := time.Unix(100, 0)
+		if _, err := player.advance(start); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := player.advance(start.Add(player.duration)); err != nil {
+			t.Fatal(err)
+		}
+		if callback := player.takeCompletion(); callback != nil {
+			if err := callback(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if !completed {
+			t.Fatalf("%s 播完一次应通知完成", name)
+		}
 	}
 }

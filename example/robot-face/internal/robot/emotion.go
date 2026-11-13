@@ -3,77 +3,50 @@ package robot
 
 import "fmt"
 
-// GridSize 表示每条轴有五档；坐标从 0 到 4，中心为 [2,2]。
-const GridSize = 5
-
-// Vector 的顺序始终是情绪值、唤醒度，两项都只接受 0～4 的整数。
-type Vector struct {
-	Valence int `json:"valence"`
-	Arousal int `json:"arousal"`
-}
-
-// Validate 检查两个输入坐标的整数范围。
-func (v Vector) Validate() error {
-	if v.Valence < 0 || v.Valence >= GridSize || v.Arousal < 0 || v.Arousal >= GridSize {
-		return fmt.Errorf("%w: valence 和 arousal 都必须是 0～4 的整数", ErrInvalidInput)
-	}
-	return nil
-}
-
-// Expression 给一张 GIF 登记一个坐标；坐标是本示例的可调配置。
+// Expression 将接口名称、中文显示名和 GIF 文件对应起来。
+// Name 是稳定的调用名称，修改素材文件名不会改变外部接口。
 type Expression struct {
-	Name    string `json:"name"`
-	Label   string `json:"label"`
-	Valence int    `json:"valence"`
-	Arousal int    `json:"arousal"`
-	File    string `json:"file"`
+	Name  string `json:"name"`
+	Label string `json:"label"`
+	File  string `json:"file"`
 }
 
 var expressions = []Expression{
-	{Name: "normal", Label: "正常", Valence: 2, Arousal: 2, File: "smile_[0.5s].gif"},
-	{Name: "happy", Label: "开心", Valence: 4, Arousal: 4, File: "laugh_[0.5s, 1.0s].gif"},
-	{Name: "angry", Label: "生气", Valence: 1, Arousal: 4, File: "angry_[2.0s].gif"},
-	{Name: "sad", Label: "难过", Valence: 0, Arousal: 2, File: "sad_[0.5s,1.5s].gif"},
-	{Name: "surprised", Label: "惊讶", Valence: 2, Arousal: 4, File: "shocked_[0.5s, 1.0s].gif"},
-	{Name: "question", Label: "疑惑", Valence: 2, Arousal: 3, File: "question_[0.5s].gif"},
-	{Name: "asleep", Label: "睡觉", Valence: 2, Arousal: 0, File: "asleep_[21.5s].gif"},
-	{Name: "badminton", Label: "运动", Valence: 3, Arousal: 4, File: "badminton_[1.2s].gif"},
-	{Name: "confident", Label: "自信", Valence: 4, Arousal: 2, File: "confident_[0.8s].gif"},
-	{Name: "cry", Label: "哭泣", Valence: 0, Arousal: 3, File: "cry_[1.0s, 2.0s].gif"},
-	{Name: "investigate", Label: "观察", Valence: 3, Arousal: 2, File: "investigate_[0.5s, 2.5s].gif"},
-	{Name: "leisure", Label: "悠闲", Valence: 3, Arousal: 0, File: "leisure_[0.5s, 2.0s].gif"},
-	{Name: "mock", Label: "调皮", Valence: 1, Arousal: 3, File: "mock_[0.5s].gif"},
-	{Name: "music", Label: "音乐", Valence: 3, Arousal: 3, File: "music_[2.5s].gif"},
-	{Name: "mute", Label: "静音", Valence: 2, Arousal: 1, File: "mute_[0.5s].gif"},
-	{Name: "panic", Label: "惊恐", Valence: 0, Arousal: 4, File: "panic_[0.5s, 1.5s].gif"},
-	{Name: "ponder", Label: "思考", Valence: 1, Arousal: 2, File: "ponder_[0s,1.52s].gif"},
-	{Name: "shy", Label: "害羞", Valence: 3, Arousal: 1, File: "shy_[2.0s, 4.0s].gif"},
-	{Name: "sigh", Label: "叹气", Valence: 0, Arousal: 1, File: "sigh_[2.0s, 4.0s].gif"},
-	{Name: "smile-static", Label: "微笑", Valence: 4, Arousal: 0, File: "smile_static_[0.5s].gif"},
-	{Name: "snigger", Label: "坏笑", Valence: 4, Arousal: 3, File: "snigger_[1.0s].gif"},
-	{Name: "yawn", Label: "困倦", Valence: 1, Arousal: 0, File: "yawn_[2.0s].gif"},
-	{Name: "yummy", Label: "美味", Valence: 4, Arousal: 1, File: "yummy_[2.0 s].gif"},
+	{Name: "normal", Label: "正常", File: "smile_[0.5s].gif"},
+	{Name: "happy", Label: "开心", File: "laugh_[0.5s, 1.0s].gif"},
+	{Name: "angry", Label: "生气", File: "angry_[2.0s].gif"},
+	{Name: "sad", Label: "难过", File: "sad_[0.5s,1.5s].gif"},
+	{Name: "surprised", Label: "惊讶", File: "shocked_[0.5s, 1.0s].gif"},
+	{Name: "question", Label: "疑惑", File: "question_[0.5s].gif"},
+	{Name: "asleep", Label: "睡觉", File: "asleep_[21.5s].gif"},
+	{Name: "badminton", Label: "运动", File: "badminton_[1.2s].gif"},
+	{Name: "confident", Label: "自信", File: "confident_[0.8s].gif"},
+	{Name: "cry", Label: "哭泣", File: "cry_[1.0s, 2.0s].gif"},
+	{Name: "investigate", Label: "观察", File: "investigate_[0.5s, 2.5s].gif"},
+	{Name: "leisure", Label: "悠闲", File: "leisure_[0.5s, 2.0s].gif"},
+	{Name: "mock", Label: "调皮", File: "mock_[0.5s].gif"},
+	{Name: "music", Label: "音乐", File: "music_[2.5s].gif"},
+	{Name: "mute", Label: "静音", File: "mute_[0.5s].gif"},
+	{Name: "panic", Label: "惊恐", File: "panic_[0.5s, 1.5s].gif"},
+	{Name: "ponder", Label: "思考", File: "ponder_[0s,1.52s].gif"},
+	{Name: "shy", Label: "害羞", File: "shy_[2.0s, 4.0s].gif"},
+	{Name: "sigh", Label: "叹气", File: "sigh_[2.0s, 4.0s].gif"},
+	{Name: "smile-static", Label: "微笑", File: "smile_static_[0.5s].gif"},
+	{Name: "snigger", Label: "坏笑", File: "snigger_[1.0s].gif"},
+	{Name: "yawn", Label: "困倦", File: "yawn_[2.0s].gif"},
+	{Name: "yummy", Label: "美味", File: "yummy_[2.0 s].gif"},
 }
 
-func nearestExpression(input Vector) (Expression, error) {
-	if err := input.Validate(); err != nil {
-		return Expression{}, err
-	}
-	nearest := expressions[0]
-	bestDistance := 2 * GridSize * GridSize // 大于坐标范围内的最大距离平方。
-	for _, item := range expressions {
-		dx := input.Valence - item.Valence
-		dy := input.Arousal - item.Arousal
-		distance := dx*dx + dy*dy
-		// 等距时保留列表里较早的一项，让结果始终一致。
-		if distance < bestDistance {
-			nearest, bestDistance = item, distance
+func findExpression(name string) (Expression, error) {
+	for _, expression := range expressions {
+		if expression.Name == name {
+			return expression, nil
 		}
 	}
-	return nearest, nil
+	return Expression{}, fmt.Errorf("%w: 未知表情 %q，请从 /api/expressions 获取可用名称", ErrInvalidInput, name)
 }
 
-// Expressions 返回坐标登记表的副本，调用方不能修改项目内的选取顺序。
+// Expressions 返回登记表的副本，调用方不能修改项目内的配置。
 func Expressions() []Expression {
 	return append([]Expression(nil), expressions...)
 }

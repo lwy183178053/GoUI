@@ -42,7 +42,7 @@ func Open(t testing.TB) (*goui.Application, string, func(context.Context, func(*
 	first.SetColorIndex(0, 0, 1)
 	second.SetColorIndex(1, 0, 1)
 	var data bytes.Buffer
-	// 每张只占两个像素，30 秒时间轴覆盖最长的 21.5 秒保持点。
+	// 每张只占两个像素；测试播放完成由回调触发，不依赖大尺寸素材。
 	if err := gif.EncodeAll(&data, &gif.GIF{Image: []*image.Paletted{first, second, first}, Delay: []int{1000, 1000, 1000}, LoopCount: 0}); err != nil {
 		t.Fatal(err)
 	}

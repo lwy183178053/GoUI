@@ -1,6 +1,6 @@
 <ui color="#000000">
   <!-- 只加载当前表情；换源不会重建下方的文字组件。 -->
-  <image id="face" size="-1,-1" fit="contain" playback="segmented"
+  <image id="face" size="-1,-1" fit="contain"
     src="gif/smile_[0.5s].gif">
     <!-- 提示、回答等所有文字共用此处。背景透明，长文字显示末尾几行。 -->
     <text id="caption" anchor="0,1" pivot="0,1" size="-1,120"

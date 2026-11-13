@@ -19,17 +19,15 @@
         <div class="current"><strong id="expression-name">—</strong><span id="expression-code" class="caption">—</span></div>
         <p id="playback-state" class="message" role="status">等待设备状态</p>
       </section>
-      <section class="panel" aria-labelledby="matrix-title">
-        <div class="heading"><h2 id="matrix-title">表情 · 5 × 5</h2><span class="caption">点击切换</span></div>
-        <p class="axis">↑ 唤醒度：平静 → 激动</p>
-        <div id="matrix" class="matrix" role="group" aria-label="五档情绪值与唤醒度"></div>
-        <p class="axis horizontal">情绪值：消极 → 积极</p>
-        <form id="vector-form" class="vector-form">
-          <label>情绪值<input id="valence" type="number" min="0" max="4" step="1" value="2" required></label>
-          <label>唤醒度<input id="arousal" type="number" min="0" max="4" step="1" value="2" required></label>
-          <button id="apply" type="submit" class="primary">应用 <span id="vector-value">[2, 2]</span></button>
-        </form>
-        <p id="message" class="message" role="status">每轴 0～4，中心 [2,2]；边框表示输入，浅蓝表示目标表情。</p>
+      <section class="panel" aria-labelledby="expressions-title">
+        <div class="heading"><h2 id="expressions-title">表情</h2><span class="caption">点击名称播放</span></div>
+        <div class="play-options">
+          <label><input id="loop" type="checkbox">持续循环</label>
+          <label><input id="interrupt" type="checkbox" checked>立即打断</label>
+        </div>
+        <p class="caption">选项用于下次点击；不打断时等本轮结束，只保留最新请求。</p>
+        <div id="expressions" class="expressions" role="group" aria-label="可用表情"></div>
+        <p id="message" class="message" role="status">默认播一次后回正常；正常表情随机眨眼。</p>
       </section>
     </div>
     <section class="panel display-panel" aria-labelledby="display-title">
@@ -50,9 +48,9 @@
     </section>
     <details class="api-section">
       <summary>接口用法</summary>
-      <p>表情：POST /api/emotion · 两个 0～4 的整数。文字：POST /api/display · text 替换、append 追加；text 传空字符串清空。提示和回答共用一个文字区域。</p>
-      <pre><code id="api-example">{"valence":2,"arousal":2}</code></pre>
-      <p>预览采样实际 UI 画面，包含停顿、回正与字幕；网络传输会有少量延迟。</p>
+      <p>表情列表：GET /api/expressions。播放：POST /api/emotion，按名称调用；loop 默认 false，interrupt 默认 true。不打断时完成本轮再切换。文字：POST /api/display · text 替换、append 追加；text 传空字符串清空。提示和回答共用一个文字区域。</p>
+      <pre><code id="api-example">{"name":"normal","loop":false,"interrupt":true}</code></pre>
+      <p>预览采样实际 UI 画面，包含动作、随机眨眼与字幕；网络传输会有少量延迟。</p>
     </details>
   </main>
 </body>

@@ -16,6 +16,7 @@ type pageControls interface {
 	SetTextColor(string, color.NRGBA) error
 	SetVisible(string, bool) error
 	SetImageSource(string, string) error
+	PlayImage(string, bool, func() error) error
 	FinishImage(string, func() error) error
 	SetDisabled(string, bool) error
 	SetButtonEvent(string, ui.ButtonEvent, func() error) error

@@ -1,7 +1,7 @@
 "use strict";
 
 // 保留同一个 Canvas，完整解码新帧后再覆盖，切换表情不会清空或重建预览。
-// 画面来自 UI 最近绘制的帧，分段、回正、文字由同一个播放器决定。
+// 画面来自 UI 最近绘制的帧，动作、随机眨眼、文字由同一个播放器决定。
 (() => {
   const canvas = document.querySelector("#preview");
   const context = canvas.getContext("2d");

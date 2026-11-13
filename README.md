@@ -19,7 +19,7 @@ go run .
 go build -o GoUI.exe .
 ```
 
-机器人 GIF 表情示例在 `example/robot-face/` 中，同样在该目录执行 `go run .`。设备用单个 Image 显示表情，底部只有一个 Text，所有回答和提示都显示在这里；浏览器打开 `http://localhost:8080/` 可用 每轴 0～4 的 5×5 坐标调试，也可以通过 Gin 的 `POST /api/emotion` 控制表情、`POST /api/display` 替换或追加文字。具体调用和 Linux 部署见该示例的 README。
+机器人 GIF 表情示例在 `example/robot-face/` 中，同样在该目录执行 `go run .`。设备使用单个 Image 和底部一个透明 Text；浏览器打开 `http://localhost:8080/`，通过表情名称按钮选择动作、循环和打断策略。`GET /api/expressions` 获取可用名称，`POST /api/emotion` 按名称控制，`POST /api/display` 替换或追加文字。动作默认完整播放一次后回正常，正常每隔 2～5 秒随机眨眼。具体接口和 Linux 部署见示例 README。
 
 `GoUI.exe` 运行时需要同目录下的 `ui/` 资源目录。示例通过 `goui.Open("./ui")` 加载它，因此从项目目录启动程序。
 
@@ -76,7 +76,7 @@ func main() {
 }
 ```
 
-`Open` 的参数是直接包含 `config.xml` 和 `main.xml` 的 UI 目录。`Page` 提供 `GetBlock`、`GetText`、`GetImage` 和 `GetButton`，Getter 返回组件和错误，ID 不存在或标签类型不符会立即报错。组件共用 `SetColor`、`SetVisible` 和 `MoveTo`、`RotateTo`、`ScaleTo` 动画方法；Image 还提供 `SetSource` 和分段 GIF 的 `Finish`，Text 还提供 `SetText`、`SetTextColor`，Button 还提供 `SetDisabled`、`OnMouseEnter`、`OnMouseLeave`、`OnMouseDown`、`OnMouseUp` 和 `OnClick`。Button 的 XML 属性 `hover-color` 可设置鼠标进入时的填充色，移出后自动恢复 `color`；每种鼠标事件在一个按钮上只能绑定一次，XML 不再声明 `on-click`。按钮被隐藏、父节点被隐藏或按钮被禁用时，会取消未完成的按压和悬停；恢复后需要重新按下才能点击。
+`Open` 的参数是直接包含 `config.xml` 和 `main.xml` 的 UI 目录。`Page` 提供 `GetBlock`、`GetText`、`GetImage` 和 `GetButton`，Getter 返回组件和错误，ID 不存在或标签类型不符会立即报错。组件共用 `SetColor`、`SetVisible` 和 `MoveTo`、`RotateTo`、`ScaleTo` 动画方法；Image 还提供 `SetSource`、完整 GIF 的 `Play` 和完成当前 GIF 的 `Finish`，Text 还提供 `SetText`、`SetTextColor`，Button 还提供 `SetDisabled`、`OnMouseEnter`、`OnMouseLeave`、`OnMouseDown`、`OnMouseUp` 和 `OnClick`。Button 的 XML 属性 `hover-color` 可设置鼠标进入时的填充色，移出后自动恢复 `color`；每种鼠标事件在一个按钮上只能绑定一次，XML 不再声明 `on-click`。按钮被隐藏、父节点被隐藏或按钮被禁用时，会取消未完成的按压和悬停；恢复后需要重新按下才能点击。
 
 窗口可以通过 `<window decorated="false">` 隐藏系统标题栏和边框，再将 Button 事件绑定到 `app.MinimizeWindow()`、`app.ToggleMaximizeWindow()` 和 `app.CloseWindow()`。最大化/还原需要 `resizable="true"`。
 
@@ -104,7 +104,20 @@ err := app.Dispatch(ctx, func(page *goui.Page) error {
 
 ## GIF 表情
 
-表情使用普通的 `<image>`。默认 `playback="auto"`，按 GIF 内的帧延迟和循环次数自动播放；有限次播放结束后保持末帧。需要按素材规范控制进入、保持/循环和回正段时，设置 `playback="segmented"`：
+表情使用普通的 `<image>`。默认 `playback="auto"`，按 GIF 内的帧延迟和循环次数播放；有限次播放结束后保持末帧。业务代码可用 `Play` 覆盖 GIF 的循环次数，从首帧重播已加载的资源，不必重新读盘：
+
+```go
+// 播完整张 GIF 后，在主循环里执行一次回调。
+err := face.Play(false, func(*goui.Page) error {
+    return face.SetSource("gif/normal.gif")
+})
+// 持续循环，收到下一条业务指令后再切换。
+err = face.Play(true, nil)
+```
+
+`Play(false, nil)` 播一次后保持末帧；循环时不能提供完成回调。新一次 Play、SetSource 或隐藏节点会取消旧回调。Play 只接受可见的 auto GIF，回调中直接使用组件，不要再次 Dispatch；回调错误从 Run 返回。机器人项目用此能力实现“动作完成回正常”和随机眨眼。
+
+需要按素材规范控制进入、保持/循环和回正段时，仍可使用 `playback="segmented"` 和 Finish：
 
 ```xml
 <image id="face" src="gif/smile_[0.5s].gif"
@@ -126,7 +139,7 @@ err := app.Dispatch(ctx, func(page *goui.Page) error {
 
 Image 和 Block 一样可以组合子节点，先绘制图片，再绘制 Text 等子节点。子节点以 Image 的布局矩形为参考，不随 `contain` 的留白区域变化；`radius` 只裁图片和背景，不裁子树。
 
-使用一个 Image 就可以切换素材。请求当前 GIF 回正，在完成回调中换源：
+使用一个 Image 就可以切换素材。用 `Finish` 请求当前 GIF 完成本轮，在完成回调中换源；普通 auto GIF 从当前进度走到末尾，分段 GIF 则按回正规则完成：
 
 ```go
 face, err := page.GetImage("face")
@@ -136,13 +149,13 @@ return face.Finish(func(*goui.Page) error {
 })
 ```
 
-`Finish` 立即返回，回正完成后在窗口主循环中回调一次；回调返回错误会结束 `Run`。如果仍在进入段，先完成进入，再跳过保持/循环段接入回正；如果已在循环中，播完当前轮再回正。单值保持则从暂停处继续。每次播放只能请求一次 `Finish`，隐藏图片或其父节点会取消待完成回调；重新显示会从首帧播放。已经可见的图片再次 `SetVisible(true)` 不会重播。需要立即切换时直接调用 `SetSource`。
+`Finish` 立即返回，当前这一轮完成后在窗口主循环中回调一次；回调返回错误会结束 `Run`。普通 GIF 不会重新播放开头；分段 GIF 如果仍在进入段，先完成进入，再跳过保持/循环段接入回正；如果已在循环中，播完当前轮再回正。单值保持则从暂停处继续。每次播放只能请求一次 `Finish`，隐藏图片或其父节点会取消待完成回调；重新显示会从首帧播放。已经可见的图片再次 `SetVisible(true)` 不会重播。需要立即切换时直接调用 `SetSource`。
 
 `SetSource` 的路径相对于 `Open` 指定的 UI 目录，沿用当前 Image 的 `fit`、`playback` 和 Block 样式。目标读取、校验成功后才替换；失败保留原图，成功会取消旧回调并从新素材首帧播放，同一路径也会重新加载。子节点及其文字保持不变。只读取当前素材和换源时的目标，不预加载候选列表，不建立全局 GIF 缓存；旧素材不再引用后由 Go 回收。
 
 所有模式都保留 GIF 的原始帧延迟、透明色和局部帧处置规则；文件名只控制分段，不决定速度。播放复用窗口帧循环，不增加 goroutine 或定时器；仅帧变化时更新图片脏区。Image 的缩放、圆角和 Block 动画仍然可用。
 
-`example/robot-face/` 已启用分段。接口状态包含当前 `expression`、最新 `target` 和 `transitioning`；回正期间收到的新向量只替换目标，不排队。浏览器通过 `Application.Snapshot` 预览窗口实际绘制的画面，分段、回正和字幕共用同一播放结果；预览存在采样和网络延迟。
+`example/robot-face/` 使用 auto GIF 和 Play，不读取文件名中的暂停点。`POST /api/emotion` 接收 `name`、`loop`（默认 false）与 `interrupt`（默认 true）：可立即打断，或完成当前这一轮后切换；等待期间只保留最新请求。单次动作完成后回正常，正常每隔 2～5 秒随机眨眼。接口状态包含实际 `expression`、`loop` 和可选的 `pending`。`GET /api/expressions` 提供全部可用名称。随机等待和表情策略属于机器人项目，框架只提供通用播放控制。浏览器通过 `Application.Snapshot` 预览窗口实际绘制的画面，动作、随机眨眼和字幕使用同一播放结果，存在采样和网络延迟。
 
 ## 配置
 
@@ -173,7 +186,7 @@ return face.Finish(func(*goui.Page) error {
 - `dispatch.go`：将外部 goroutine 的页面更新排队，交给窗口主循环执行并返回结果。
 - `dispatch_test.go`：更新执行、取消、退出和并发提交测试。
 - `page.go`：`Page` 组件查找、Block 通用方法、Text 和 Button 的类型化 API。Text、Image、Button 通过嵌入 Block 共享基础方法。
-- `image.go`、`image_test.go`：公开的 Image 类型、`SetSource`、分段 GIF 完成回调与 API 转发测试。
+- `image.go`、`image_test.go`：公开的 Image 类型、`SetSource`、`Play`、完整/分段 GIF 完成回调与 API 转发测试。
 - `display.go`：公开桌面显示器信息和 `Displays()` 查询函数。
 - `go.mod`、`go.sum`：框架模块地址和依赖版本。
 - `internal/ui/`：XML 解析、config 校验、字体与图片资源读取、组件展开和节点模型。
@@ -183,12 +196,13 @@ return face.Finish(func(*goui.Page) error {
 - `internal/ui/image.go`：XML 与运行时换源共用的图片读取、解码和分段校验。
 - `internal/ui/animated_image.go`：读取 GIF 的帧、延迟、循环次数和帧处置规则，按需合成当前帧。
 - `internal/ui/image_segments.go`、`image_segments_test.go`：校验文件名中的秒/帧分段，统一换算为原 GIF 时间轴，检查加载错误。
-- `internal/render/software/image_playback.go`：单张 GIF 的时间轴、保持、循环和回正状态；不依赖窗口。
+- `internal/render/software/image_playback.go`：单张 GIF 的时间轴、单次/循环重播、分段保持和回正状态；不依赖窗口。
 - `internal/render/software/image_animation.go`：在窗口帧循环中推进可见 GIF、处理完成回调、重置隐藏动画并使图片缓存失效。
-- `internal/render/software/image_animation_test.go`、`image_segments_test.go`：普通 GIF 与分段播放、重绘、显隐和回正切换，以及思考循环和字幕透明的回归测试。
+- `internal/render/software/image_animation_test.go`、`image_segments_test.go`：普通 GIF 与分段播放、重绘、显隐和回正切换，以及机器人完整播放和字幕透明的回归测试。
 - `internal/render/software/animation.go`、`animation_test.go`：移动、旋转、缩放的线性插值，共用仿射变换，以及填充轴与变换命中的回归测试。
 - `internal/render/software/input.go`、`input_test.go`：统一处理鼠标事件、按压与悬停状态、逆绘制顺序命中；测试事件回调中显隐、禁用和小数位移边缘。
 - `internal/render/software/shapes.go`、`text.go`、`images.go`：圆角矩形、文字排版、图片换源和缩放绘制。
+- `internal/render/software/image_control_test.go`：完整 GIF 的单次/持续播放、完成本轮、完成时机、旧回调取消、切换首帧及错误处理测试。
 - `internal/render/software/image_source_test.go`：按需加载、换源失败保留旧图、子节点和完成回调换源的测试。
 - `internal/backend/backend.go`：帧来源、呈现后端、排队更新和指针输入接口。
 - `internal/backend/window/`：Ebitengine 桌面窗口、Windows/Linux 显示器枚举和其它系统的明确错误实现。
@@ -196,15 +210,18 @@ return face.Finish(func(*goui.Page) error {
 - `example/hello-world/`：可直接运行的独立 Go 项目示例。
 - `example/hello-world/main.go`：示例业务入口和按钮事件绑定。
 - `example/hello-world/ui/`：示例 `config.xml`、`main.xml`、组件、字体和图片资源。
-- `example/robot-face/`：独立机器人 GIF 表情示例，1080×720 黑底窗口，单个 Image 按需播放 23 张 GIF，提供二维坐标、统一文字接口和 Web 调试面板。
+- `example/robot-face/`：独立机器人 GIF 表情示例，1080×720 黑底窗口，单个 Image 按需播放 23 张 GIF，提供按名播放、循环/打断策略、统一文字接口和 Web 调试面板。
 - `example/robot-face/main.go`：机器人项目启动入口、HTTP 与窗口生命周期。
-- `example/robot-face/internal/robot/`：项目自己的情绪坐标、表情切换和统一文字显示，不属于 GoUI 框架。
+- `example/robot-face/internal/robot/`：项目自己的表情名称、切换策略与统一文字显示，不属于 GoUI 框架。
+- `example/robot-face/internal/robot/controller.go`、`emotion.go`：绑定 Image/Text、保存实际状态、登记表情名称与资源。
+- `example/robot-face/internal/robot/playback.go`：立即或完成本轮后切换、单次回正常、循环与旧通知失效。
+- `example/robot-face/internal/robot/idle.go`、`idle_test.go`：正常表情的随机眨眼间隔、可取消等待和过期通知检查。
 - `example/robot-face/internal/httpapi/`：项目自己的 Gin 接口、输入校验、Web 面板与测试。
-- `example/robot-face/internal/httpapi/web/`：无需前端工具链的调试网页，包含实际 UI 帧预览、5×5 表情、文字、状态与模拟流式输出控件。
+- `example/robot-face/internal/httpapi/web/`：无需前端工具链的调试网页，包含实际 UI 帧预览、表情名称按钮、循环/打断选项、文字与模拟流式输出控件。
 - `example/robot-face/internal/testui/`：仅供示例测试使用的小尺寸资源。
 - `example/robot-face/ui/`：表情与底部文字页面、窗口配置和原始素材。
 
-仓库根目录的 `internal/` 属于框架；`example/robot-face/internal/` 属于独立示例项目。框架不依赖 Gin，也不定义情绪坐标、倾听状态或大模型协议。用户业务只需要导入根包 `github.com/lwy183178053/GoUI`。
+仓库根目录的 `internal/` 属于框架；`example/robot-face/internal/` 属于独立示例项目。框架不依赖 Gin，也不定义表情名称、倾听状态或大模型协议。用户业务只需要导入根包 `github.com/lwy183178053/GoUI`。
 
 ## 检查
 

@@ -77,10 +77,7 @@ func TestTextSurvivesExpressionSourceSwitch(t *testing.T) {
 	if _, err := controller.SetDisplay(context.Background(), DisplayUpdate{Text: text(want.Text)}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := controller.SetEmotion(context.Background(), Vector{4, 4}); err != nil {
-		t.Fatal(err)
-	}
-	if err := controller.showTarget(nil); err != nil {
+	if _, err := controller.SetExpression(context.Background(), ExpressionRequest{Name: "happy", Interrupt: true}); err != nil {
 		t.Fatal(err)
 	}
 	if controller.Display() != want || controller.Emotion().Expression.Name != "happy" {

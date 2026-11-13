@@ -17,12 +17,26 @@ type imagePlayback struct {
 	started      time.Time
 	current      int
 	exit         *imageExit
+	mode         imagePlayMode
+	completion   *imageCompletion
 }
 
 // imageExit 记录请求回正时的播放位置，之后沿原 GIF 的时间轴走到末尾。
 type imageExit struct {
 	elapsed  time.Duration
 	position time.Duration
+}
+
+type imagePlayMode uint8
+
+const (
+	imageAuto imagePlayMode = iota // 遵守 XML 与 GIF 文件本身的设置。
+	imageOnce
+	imageLoop
+)
+
+// imageCompletion 同时用于完整播放与分段回正，重播或隐藏后旧回调失效。
+type imageCompletion struct {
 	onDone   func() error
 	complete bool
 }
@@ -40,8 +54,8 @@ func (p *imagePlayback) advance(now time.Time) (bool, error) {
 	}
 	elapsed := now.Sub(p.started)
 	frame := p.frameAt(elapsed)
-	if p.exit != nil && p.positionAt(elapsed) >= p.duration {
-		p.exit.complete = true
+	if p.completion != nil && p.positionAt(elapsed) >= p.duration {
+		p.completion.complete = true
 	}
 	if frame == p.current {
 		return false, nil
@@ -69,11 +83,20 @@ func (p *imagePlayback) frameAt(elapsed time.Duration) int {
 // positionAt 将实际经过时间映射到 GIF 原时间轴；帧速率始终来自 GIF 本身。
 func (p *imagePlayback) positionAt(elapsed time.Duration) time.Duration {
 	elapsed = max(0, elapsed)
+	if p.duration <= 0 {
+		return 0
+	}
+	switch p.mode {
+	case imageOnce:
+		return min(elapsed, p.duration)
+	case imageLoop:
+		return elapsed % p.duration
+	}
 	segments := p.animation.Segments
 	if p.exit != nil {
 		position := p.exit.position + max(0, elapsed-p.exit.elapsed)
 		// 在进入段就收到切换请求时，播完进入段后跳过保持/循环段。
-		if p.exit.position < segments.Start && position >= segments.Start {
+		if segments != nil && p.exit.position < segments.Start && position >= segments.Start {
 			position += segments.End - segments.Start
 		}
 		return min(position, p.duration)
@@ -88,9 +111,6 @@ func (p *imagePlayback) positionAt(elapsed time.Duration) time.Duration {
 		return segments.Start + (elapsed-segments.Start)%(segments.End-segments.Start)
 	}
 	// 普通 GIF 保留原有循环规则；文件名里即使带参数也不会自动启用分段。
-	if p.duration <= 0 {
-		return 0
-	}
 	loops := p.animation.LoopCount
 	if loops < 0 && elapsed >= p.duration {
 		return p.duration
@@ -102,9 +122,6 @@ func (p *imagePlayback) positionAt(elapsed time.Duration) time.Duration {
 }
 
 func (p *imagePlayback) finish(now time.Time, onDone func() error) error {
-	if p.animation.Segments == nil {
-		return errors.New("image is not a segmented GIF")
-	}
 	if p.exit != nil {
 		return errors.New("GIF finish has already been requested")
 	}
@@ -112,23 +129,34 @@ func (p *imagePlayback) finish(now time.Time, onDone func() error) error {
 		p.started = now
 	}
 	elapsed := max(0, now.Sub(p.started))
-	p.exit = &imageExit{elapsed: elapsed, position: p.positionAt(elapsed), onDone: onDone}
+	position := p.positionAt(elapsed)
+	p.mode = imageAuto // 请求结束后沿当前时间轴走到末尾，不重播进入段。
+	p.exit = &imageExit{elapsed: elapsed, position: position}
+	p.completion = &imageCompletion{onDone: onDone}
 	return nil
 }
 
+// play 覆盖文件的循环次数；同一资源重播只重置逐帧解码状态。
+func (p *imagePlayback) play(loop bool, onDone func() error) {
+	p.reset()
+	p.mode = imageOnce
+	if loop {
+		p.mode = imageLoop
+	} else if onDone != nil {
+		p.completion = &imageCompletion{onDone: onDone}
+	}
+}
+
 func (p *imagePlayback) takeCompletion() func() error {
-	if p.exit == nil || !p.exit.complete {
+	completion := p.completion
+	if completion == nil || !completion.complete || completion.onDone == nil {
 		return nil
 	}
-	exit := p.exit
-	callback := exit.onDone
-	exit.onDone = nil // 完成回调只执行一次，末帧可以继续显示。
-	if callback == nil {
-		return nil
-	}
+	callback := completion.onDone
+	completion.onDone = nil // 每次播放只通知一次，末帧可以继续显示。
 	return func() error {
-		// 同一帧中其它回调可能隐藏此图片，重置后不再调用旧回调。
-		if p.exit != exit {
+		// 同帧其它回调可能重播、换源或隐藏此图片。
+		if p.completion != completion {
 			return nil
 		}
 		return callback()
@@ -142,6 +170,8 @@ func (p *imagePlayback) reset() {
 	p.started = time.Time{}
 	p.current = -1
 	p.exit = nil
+	p.mode = imageAuto
+	p.completion = nil
 }
 
 func (p *imagePlayback) frame() image.Image {
