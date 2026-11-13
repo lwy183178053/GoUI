@@ -19,7 +19,7 @@ go run .
 go build -o GoUI.exe .
 ```
 
-机器人 GIF 表情示例在 `example/robot-face/` 中，同样在该目录执行 `go run .`。设备用单个 Image 显示表情，底部 Text 显示回答和倾听等状态；浏览器打开 `http://localhost:8080/` 可用 0～10 的二维坐标调试，也可以通过 Gin 的 `POST /api/emotion` 控制表情、`POST /api/display` 更新文字与状态。具体调用和 Linux 部署见该示例的 README。
+机器人 GIF 表情示例在 `example/robot-face/` 中，同样在该目录执行 `go run .`。设备用单个 Image 显示表情，底部 Text 显示回答和倾听等状态；浏览器打开 `http://localhost:8080/` 可用 每轴 0～4 的 5×5 坐标调试，也可以通过 Gin 的 `POST /api/emotion` 控制表情、`POST /api/display` 更新文字与状态。具体调用和 Linux 部署见该示例的 README。
 
 `GoUI.exe` 运行时需要同目录下的 `ui/` 资源目录。示例通过 `goui.Open("./ui")` 加载它，因此从项目目录启动程序。
 
@@ -142,7 +142,7 @@ return face.Finish(func(*goui.Page) error {
 
 所有模式都保留 GIF 的原始帧延迟、透明色和局部帧处置规则；文件名只控制分段，不决定速度。播放复用窗口帧循环，不增加 goroutine 或定时器；仅帧变化时更新图片脏区。Image 的缩放、圆角和 Block 动画仍然可用。
 
-`example/robot-face/` 已启用分段。接口状态包含当前 `expression`、最新 `target` 和 `transitioning`；回正期间收到的新向量只替换目标，不排队。浏览器中的原始 GIF 预览不模拟分段，以设备窗口为准。
+`example/robot-face/` 已启用分段。接口状态包含当前 `expression`、最新 `target` 和 `transitioning`；回正期间收到的新向量只替换目标，不排队。浏览器通过 `Application.Snapshot` 预览窗口实际绘制的画面，分段、回正和字幕共用同一播放结果；预览存在采样和网络延迟。
 
 ## 配置
 
@@ -169,6 +169,7 @@ return face.Finish(func(*goui.Page) error {
 ## 代码目录
 
 - `application.go`：`Open`、`Application.Page` 和 `Application.Run`，连接 XML 加载、软件渲染与窗口后端。
+- `snapshot.go`、`snapshot_test.go`：通过主循环复制已绘制的 RGBA 帧，供外部预览或截图使用；不重新推进动画。
 - `dispatch.go`：将外部 goroutine 的页面更新排队，交给窗口主循环执行并返回结果。
 - `dispatch_test.go`：更新执行、取消、退出和并发提交测试。
 - `page.go`：`Page` 组件查找、Block 通用方法、Text 和 Button 的类型化 API。Text、Image、Button 通过嵌入 Block 共享基础方法。
@@ -177,13 +178,14 @@ return face.Finish(func(*goui.Page) error {
 - `go.mod`、`go.sum`：框架模块地址和依赖版本。
 - `internal/ui/`：XML 解析、config 校验、字体与图片资源读取、组件展开和节点模型。
 - `internal/layout/`：锚点布局、像素取整、按钮命中和重绘范围计算。
+- `internal/render/software/snapshot.go`、`snapshot_test.go`：截图内存隔离、绘制前/关闭后的错误测试。
 - `internal/render/software/render.go`：组装字体、节点绘制顺序、RGBA 帧缓存和组件状态更新。
 - `internal/ui/image.go`：XML 与运行时换源共用的图片读取、解码和分段校验。
 - `internal/ui/animated_image.go`：读取 GIF 的帧、延迟、循环次数和帧处置规则，按需合成当前帧。
 - `internal/ui/image_segments.go`、`image_segments_test.go`：校验文件名中的秒/帧分段，统一换算为原 GIF 时间轴，检查加载错误。
 - `internal/render/software/image_playback.go`：单张 GIF 的时间轴、保持、循环和回正状态；不依赖窗口。
 - `internal/render/software/image_animation.go`：在窗口帧循环中推进可见 GIF、处理完成回调、重置隐藏动画并使图片缓存失效。
-- `internal/render/software/image_animation_test.go`、`image_segments_test.go`：普通 GIF 与分段播放、重绘、显隐和回正切换回归测试。
+- `internal/render/software/image_animation_test.go`、`image_segments_test.go`：普通 GIF 与分段播放、重绘、显隐和回正切换，以及思考循环和字幕透明的回归测试。
 - `internal/render/software/animation.go`：移动、旋转、缩放的线性插值，以及绘制和命中共用的仿射变换。
 - `internal/render/software/input.go`：鼠标事件注册、按钮事件派发和逆绘制顺序命中。
 - `internal/render/software/shapes.go`、`text.go`、`images.go`：圆角矩形、文字排版、图片换源和缩放绘制。
@@ -198,7 +200,7 @@ return face.Finish(func(*goui.Page) error {
 - `example/robot-face/main.go`：机器人项目启动入口、HTTP 与窗口生命周期。
 - `example/robot-face/internal/robot/`：项目自己的情绪坐标、表情切换、回答文字和交互状态，不属于 GoUI 框架。
 - `example/robot-face/internal/httpapi/`：项目自己的 Gin 接口、输入校验、Web 面板与测试。
-- `example/robot-face/internal/httpapi/web/`：无需前端工具链的调试网页，包含表情、文字、状态与模拟流式输出控件。
+- `example/robot-face/internal/httpapi/web/`：无需前端工具链的调试网页，包含实际 UI 帧预览、5×5 表情、文字、状态与模拟流式输出控件。
 - `example/robot-face/internal/testui/`：仅供示例测试使用的小尺寸资源。
 - `example/robot-face/ui/`：表情与底部文字页面、窗口配置和原始素材。
 

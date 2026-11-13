@@ -3,96 +3,63 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
-  <title>GoUI · 表情调试</title>
+  <title>机器人调试</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="/app.js" defer></script>
   <script src="/display.js" defer></script>
+  <script src="/preview.js" defer></script>
 </head>
 <body>
   <main class="workspace">
-    <header class="page-header">
-      <div class="topline">
-        <span class="wordmark">GoUI <span>/ ROBOT LAB</span></span>
-        <span id="connection" class="connection" role="status">连接中</span>
-      </div>
-      <p class="eyebrow">EXPRESSION CONTROL</p>
-      <h1>机器人表情调试</h1>
-      <p class="intro">输入一个情绪坐标，设备显示距离最近的 GIF。通过浏览器测试表情、回答文字和交互状态。</p>
-    </header>
-
+    <header><h1>机器人调试</h1><span id="connection" class="caption" role="status">正在连接…</span></header>
     <div class="dashboard">
-      <section class="panel matrix-panel" aria-labelledby="matrix-title">
-        <div class="panel-heading">
-          <h2 id="matrix-title">情绪矩阵</h2>
-          <span class="caption">整数坐标 · 0—10</span>
-        </div>
-        <div class="matrix-top"><span>↑ 唤醒度 / 激动</span><span>点击任意位置应用</span></div>
-        <div id="matrix" class="matrix" role="group" aria-label="情绪值与唤醒度坐标"></div>
-        <div class="matrix-bottom"><span>消极</span><span>情绪值 →</span><span>积极</span></div>
-        <div class="legend"><span><i class="input-mark"></i>输入位置</span><span><i class="expression-mark"></i>目标 GIF</span><span>带文字的格子是素材坐标</span></div>
+      <section class="panel" aria-labelledby="preview-title">
+        <div class="heading"><h2 id="preview-title">屏幕实况</h2><span id="preview-state" class="caption" role="status">等待画面</span></div>
+        <div class="preview"><canvas id="preview" width="640" height="427" aria-label="机器人实际屏幕画面"></canvas></div>
+        <div class="current"><strong id="expression-name">—</strong><span id="expression-code" class="caption">—</span></div>
+        <p id="playback-state" class="message" role="status">等待设备状态</p>
       </section>
-
-      <section class="panel state-panel" aria-labelledby="state-title">
-        <div class="panel-heading"><h2 id="state-title">设备当前状态</h2><span class="caption">每秒同步</span></div>
-        <div class="preview"><img id="preview" alt="当前表情素材预览" hidden></div>
-        <div class="current-summary">
-          <div><p class="caption">当前表情</p><h3 id="expression-name">等待连接</h3></div>
-          <span id="expression-code" class="code-name">—</span>
-        </div>
-        <p id="playback-state" class="message" role="status">等待设备状态…</p>
-        <p class="preview-note">这里循环预览原始 GIF，不模拟分段与回正；实际播放以设备屏幕为准。</p>
-        <form id="vector-form">
-          <div class="fields">
-            <label for="valence">情绪值 <span>消极 → 积极</span><input id="valence" name="valence" type="number" min="0" max="10" step="1" value="5" required></label>
-            <label for="arousal">唤醒度 <span>平静 → 激动</span><input id="arousal" name="arousal" type="number" min="0" max="10" step="1" value="5" required></label>
-          </div>
-          <button id="apply" class="primary" type="submit">应用向量 <span id="vector-value">[5, 5]</span></button>
+      <section class="panel" aria-labelledby="matrix-title">
+        <div class="heading"><h2 id="matrix-title">表情 · 5 × 5</h2><span class="caption">点击切换</span></div>
+        <p class="axis">↑ 唤醒度：平静 → 激动</p>
+        <div id="matrix" class="matrix" role="group" aria-label="五档情绪值与唤醒度"></div>
+        <p class="axis horizontal">情绪值：消极 → 积极</p>
+        <form id="vector-form" class="vector-form">
+          <label>情绪值<input id="valence" type="number" min="0" max="4" step="1" value="2" required></label>
+          <label>唤醒度<input id="arousal" type="number" min="0" max="4" step="1" value="2" required></label>
+          <button id="apply" type="submit" class="primary">应用 <span id="vector-value">[2, 2]</span></button>
         </form>
-        <p id="message" class="message" role="status">正在读取设备状态…</p>
+        <p id="message" class="message" role="status">每轴 0～4，中心 [2,2]；边框表示输入，浅蓝表示目标表情。</p>
       </section>
     </div>
-
     <section class="panel display-panel" aria-labelledby="display-title">
-      <div class="panel-heading"><h2 id="display-title">回答与交互状态</h2><span class="caption">屏幕底部显示 · 与表情独立</span></div>
+      <div class="heading"><h2 id="display-title">底部文字</h2><span id="device-status" class="caption">待命</span></div>
       <form id="display-form" class="display-editor">
-        <label for="display-status">交互状态
-          <select id="display-status">
-            <option value="idle">待命（隐藏状态文字）</option>
-            <option value="listening">正在倾听</option>
-            <option value="thinking">正在思考</option>
-            <option value="speaking">正在回答</option>
-          </select>
-        </label>
-        <label for="display-text">回答文字
-          <textarea id="display-text" rows="3" maxlength="8192" placeholder="输入一段回答，或模拟大模型逐段输出"></textarea>
-        </label>
+        <label class="sr-only" for="display-text">回答文字</label>
+        <textarea id="display-text" rows="2" maxlength="8192" placeholder="输入回答文字，屏幕底部透明显示"></textarea>
         <div class="display-actions">
-          <button class="primary" type="submit">替换文字与状态</button>
-          <button id="display-stream" type="button">模拟流式回答</button>
+          <label class="sr-only" for="display-status">交互状态</label>
+          <select id="display-status">
+            <option value="idle">待命</option><option value="listening">正在倾听</option>
+            <option value="thinking">正在思考</option><option value="speaking">正在回答</option>
+          </select>
+          <button type="submit" class="primary">更新显示</button>
           <button id="display-clear" type="button">清空</button>
         </div>
-        <div class="display-append">
-          <input id="display-delta" aria-label="追加文字片段" placeholder="输入后续片段，例如：今天天气很好。">
-          <button id="display-append" type="button">追加片段</button>
-        </div>
+        <details>
+          <summary>增量输出测试</summary>
+          <div class="display-append"><input id="display-delta" aria-label="追加文字片段" placeholder="追加文字片段"><button id="display-append" type="button">追加</button><button id="display-stream" type="button">模拟流式回答</button></div>
+          <p id="device-text" class="device-text">—</p>
+        </details>
       </form>
-      <div class="display-output"><span id="device-status" class="caption">等待设备状态</span><p id="device-text">—</p></div>
-      <p id="display-message" class="message" role="status">POST /api/display 支持 text 替换、append 追加、status 状态更新。</p>
+      <p id="display-message" class="message" role="status">文字与表情独立控制。</p>
     </section>
-
-    <section class="catalog-section" aria-labelledby="catalog-title">
-      <div class="section-heading"><h2 id="catalog-title">全部表情</h2><span id="expression-count" class="caption">素材坐标</span></div>
-      <p class="caption">点击名称直接发送这张 GIF 的坐标；相同结果会继续播放，不会重头开始。</p>
-      <div id="catalog" class="catalog"></div>
-    </section>
-
     <details class="api-section">
-      <summary><span>接口调用</span><span class="caption">POST /api/emotion</span></summary>
-      <p>表情发送两个整数；回答与状态使用 POST /api/display，例如 {"append":"后续回答"} 或 {"status":"listening"}。请求成功表示已接收目标，设备完成回正后再切换。GET 同一路径可读取当前表情、目标和回正状态。</p>
-      <pre><code id="api-example"></code></pre>
+      <summary>接口用法</summary>
+      <p>表情：POST /api/emotion · 两个 0～4 的整数。文字：POST /api/display · text 替换、append 追加、status 设置状态。</p>
+      <pre><code id="api-example">{"valence":2,"arousal":2}</code></pre>
+      <p>预览采样实际 UI 画面，包含停顿、回正与字幕；网络传输会有少量延迟。</p>
     </details>
-    <footer><span>GoUI / GIF EXPRESSION</span><span>坐标决定选择，GIF 提供动作。</span></footer>
   </main>
 </body>
 </html>

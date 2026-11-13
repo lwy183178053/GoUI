@@ -4,6 +4,7 @@ import (
 	"errors"
 	"image"
 	"image/color"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -244,5 +245,49 @@ func TestAutoGIFRejectsFinish(t *testing.T) {
 	renderer := rendererFor(t, node)
 	if err := renderer.FinishImage("auto", func() error { return nil }); err == nil {
 		t.Fatal("普通 GIF 不能调用分段回正")
+	}
+}
+
+// 思考素材从暂停改为首尾相接的完整循环，不修改 GIF 的帧延迟或其它暂停规则。
+func TestRobotThinkingLoopsUntilFinishAndCaptionIsTransparent(t *testing.T) {
+	doc, err := ui.Load(filepath.Join("..", "..", "..", "example", "robot-face", "ui"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderer, err := New(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer renderer.Close()
+	if doc.Find("caption").Color.A != 0 {
+		t.Fatal("字幕背景必须透明")
+	}
+	if err := renderer.SetImageSource("face", "gif/ponder_[0s,1.52s].gif"); err != nil {
+		t.Fatal(err)
+	}
+	player := renderer.imagePlayers[doc.Find("face")]
+	start := time.Unix(100, 0)
+	for _, elapsed := range []time.Duration{0, 600 * time.Millisecond, 1200 * time.Millisecond, 1700 * time.Millisecond} {
+		if _, err := player.advance(start.Add(elapsed)); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := player.positionAt(elapsed), elapsed%player.duration; got != want {
+			t.Fatalf("思考应持续循环: %s != %s", got, want)
+		}
+	}
+	completed := false
+	if err := player.finish(start.Add(1700*time.Millisecond), func() error { completed = true; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := player.advance(start.Add(3100 * time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	if callback := player.takeCompletion(); callback != nil {
+		if err := callback(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !completed {
+		t.Fatal("思考循环结束后应允许切换表情")
 	}
 }

@@ -13,19 +13,19 @@ import (
 	goui "github.com/lwy183178053/GoUI"
 )
 
-func testController(t *testing.T) (*robot.Controller, string) {
+func testController(t *testing.T) *robot.Controller {
 	t.Helper()
-	app, directory, dispatch := testui.Open(t)
+	app, _, dispatch := testui.Open(t)
 	controller, err := robot.New(app.Page(), dispatch)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return controller, directory
+	return controller
 }
 
 func TestEmotionHTTPAPI(t *testing.T) {
-	controller, directory := testController(t)
-	router := New(controller, directory)
+	controller := testController(t)
+	router := New(controller, testSnapshot)
 	request := func(method, path, body string) *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -39,11 +39,12 @@ func TestEmotionHTTPAPI(t *testing.T) {
 		var body struct {
 			Current     robot.EmotionState `json:"current"`
 			Expressions []robot.Expression `json:"expressions"`
+			GridSize    int                `json:"grid_size"`
 		}
 		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 			t.Fatal(err)
 		}
-		if response.Code != http.StatusOK || body.Current.Expression.Name != "normal" || len(body.Expressions) != 23 {
+		if response.Code != http.StatusOK || body.Current.Expression.Name != "normal" || len(body.Expressions) != 23 || body.GridSize != 5 {
 			t.Fatalf("初始响应不正确：%d, %s", response.Code, response.Body.String())
 		}
 		if response.Header().Get("Cache-Control") != "no-store" {
@@ -51,7 +52,7 @@ func TestEmotionHTTPAPI(t *testing.T) {
 		}
 	})
 	t.Run("向量切换", func(t *testing.T) {
-		response := request(http.MethodPost, "/api/emotion", `{"valence":9,"arousal":9}`)
+		response := request(http.MethodPost, "/api/emotion", `{"valence":4,"arousal":4}`)
 		if response.Code != http.StatusOK || controller.Emotion().Target.Name != "happy" || !controller.Emotion().Transitioning {
 			t.Fatalf("切换失败：%d, %s", response.Code, response.Body.String())
 		}
@@ -70,6 +71,7 @@ func TestEmotionHTTPAPI(t *testing.T) {
 			`{"valence":"8","arousal":8}`, `{"valence":8.5,"arousal":8}`,
 			`{"valence":8,"arousal":8,"unknown":1}`,
 			`{"valence":-1,"arousal":8}`, `{"valence":8,"arousal":11}`,
+			`{"valence":5,"arousal":2}`, `{"valence":2,"arousal":5}`,
 			`{"valence":8,"arousal":8} {}`,
 			`{"valence":8,"arousal":8}` + strings.Repeat(" ", 1100),
 		} {
@@ -82,21 +84,21 @@ func TestEmotionHTTPAPI(t *testing.T) {
 			}
 		}
 	})
-	t.Run("内嵌网页和 GIF", func(t *testing.T) {
-		for _, path := range []string{"/", "/styles.css", "/app.js", "/gif/smile_%5B0.5s%5D.gif"} {
+	t.Run("内嵌网页和禁止原始素材路径", func(t *testing.T) {
+		for _, path := range []string{"/", "/styles.css", "/app.js", "/preview.js"} {
 			response := request(http.MethodGet, path, "")
 			if response.Code != http.StatusOK || response.Body.Len() == 0 {
 				t.Errorf("静态文件 %s = %d", path, response.Code)
 			}
 		}
-		for _, path := range []string{"/gif/missing.gif", "/gif/config.xml", "/config.xml", "/web/"} {
+		for _, path := range []string{"/gif/smile_%5B0.5s%5D.gif", "/gif/missing.gif", "/gif/config.xml", "/config.xml", "/web/"} {
 			if response := request(http.MethodGet, path, ""); response.Code != http.StatusNotFound {
 				t.Errorf("未开放文件 %s = %d", path, response.Code)
 			}
 		}
 	})
 	t.Run("窗口退出后报告不可用", func(t *testing.T) {
-		app, directory, _ := testui.Open(t)
+		app, _, _ := testui.Open(t)
 		for _, test := range []struct {
 			err    error
 			status int
@@ -109,8 +111,8 @@ func TestEmotionHTTPAPI(t *testing.T) {
 				t.Fatal(err)
 			}
 			response := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/api/emotion", strings.NewReader(`{"valence":1,"arousal":9}`))
-			New(controller, directory).ServeHTTP(response, req)
+			req := httptest.NewRequest(http.MethodPost, "/api/emotion", strings.NewReader(`{"valence":1,"arousal":4}`))
+			New(controller, testSnapshot).ServeHTTP(response, req)
 			if response.Code != test.status {
 				t.Fatalf("窗口错误状态码 = %d，期望 %d", response.Code, test.status)
 			}

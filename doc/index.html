@@ -477,7 +477,7 @@ return face.Finish(func(*goui.Page) error {
     return face.SetSource("gif/laugh_[0.5s, 1.0s].gif")
 })</code></pre>
         <p>两种模式都复用窗口帧循环，不增加 goroutine 或独立定时器；仅帧变化时更新图片脏区。GIF 的透明色、局部帧处置、Image 缩放、圆角与 Block 动画仍然有效。</p>
-        <p class="small">可运行示例在 <code>example/robot-face/</code>。设备页面用一个 Image 显示黑底 GIF，内部 Text 显示底部回答和交互状态。23 张素材登记在项目代码中，按需换源并分段播放，按 0～10 的情绪值、唤醒度选择最近坐标。访问 <code>http://localhost:8080/</code> 使用 Web 面板，或向 <code>POST /api/emotion</code> 发送 <code>{"valence":9,"arousal":9}</code>。HTTP 更新通过 <code>app.Dispatch</code> 提交；响应中的 <code>expression</code> 是实际表情，<code>target</code> 是最新目标，<code>transitioning</code> 表示等待回正。连续输入只保留最新目标。<code>POST /api/display</code> 的 <code>text</code> 替换回答、<code>append</code> 追加模型增量、<code>status</code> 切换 idle/listening/thinking/speaking。以上 Gin 接口和机器人规则都属于示例项目，GoUI 框架只提供组件操作与绘制。浏览器仅预览原始 GIF，不模拟分段，实际效果以设备为准。</p>
+        <p class="small">可运行示例在 <code>example/robot-face/</code>。设备页面用一个 Image 显示黑底 GIF，内部 Text 显示底部回答和交互状态。23 张素材登记在项目代码中，按需换源并分段播放，按 5×5 矩阵选择，情绪值、唤醒度均为 0～4 的整数，中心为 [2,2]。访问 <code>http://localhost:8080/</code> 使用 Web 面板，或向 <code>POST /api/emotion</code> 发送 <code>{"valence":4,"arousal":4}</code>。HTTP 更新通过 <code>app.Dispatch</code> 提交；响应中的 <code>expression</code> 是实际表情，<code>target</code> 是最新目标，<code>transitioning</code> 表示等待回正。连续输入只保留最新目标。<code>POST /api/display</code> 的 <code>text</code> 替换回答、<code>append</code> 追加模型增量、<code>status</code> 切换 idle/listening/thinking/speaking。以上 Gin 接口和机器人规则都属于示例项目，GoUI 框架只提供组件操作与绘制。浏览器从 <code>Application.Snapshot</code> 取得设备已绘制的帧，在同一 Canvas 更新，分段、回正和透明字幕与 UI 共用结果；有少量采样和网络延迟。预览协议属于机器人项目，框架只提供通用截图能力。“思考”素材使用 <code>ponder_[0s,1.52s].gif</code> 完整循环，其它单值文件仍在标记处保持。</p>
       </section>
 
       <section class="doc-section" id="button">

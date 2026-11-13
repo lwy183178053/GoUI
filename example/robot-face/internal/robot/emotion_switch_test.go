@@ -8,12 +8,12 @@ import (
 
 func TestRobotWaitsForReturnAndKeepsSameGIFPlaying(t *testing.T) {
 	robot, _ := testRobot(t)
-	got, err := robot.SetEmotion(context.Background(), Vector{9, 9})
+	got, err := robot.SetEmotion(context.Background(), Vector{4, 4})
 	if err != nil || got.Expression.Name != "normal" || got.Target.Name != "happy" || !got.Transitioning {
 		t.Fatalf("应先回正，目标为开心：%+v, %v", got, err)
 	}
-	got, err = robot.SetEmotion(context.Background(), Vector{10, 10})
-	if err != nil || got.Vector != (Vector{10, 10}) || got.Target.Name != "happy" {
+	got, err = robot.SetEmotion(context.Background(), Vector{4, 4})
+	if err != nil || got.Vector != (Vector{4, 4}) || got.Target.Name != "happy" {
 		t.Fatalf("等待回正时不应重复 Finish：%+v, %v", got, err)
 	}
 	// 手动调用完成回调模拟播放器通知，单元测试不依赖真实窗口或等待时间。
@@ -26,7 +26,7 @@ func TestRobotWaitsForReturnAndKeepsSameGIFPlaying(t *testing.T) {
 	}
 	// 同一张 GIF 的新坐标不应调用显隐方法，也不应请求它退出。
 	robot.face = nil
-	got, err = robot.SetEmotion(context.Background(), Vector{9, 10})
+	got, err = robot.SetEmotion(context.Background(), Vector{4, 4})
 	if err != nil || got.Expression.Name != "happy" || got.Transitioning {
 		t.Fatalf("重复选中应继续播放：%+v, %v", got, err)
 	}
@@ -34,7 +34,7 @@ func TestRobotWaitsForReturnAndKeepsSameGIFPlaying(t *testing.T) {
 
 func TestRobotKeepsOnlyLatestTargetDuringReturn(t *testing.T) {
 	robot, _ := testRobot(t)
-	for _, input := range []Vector{{9, 9}, {1, 2}, {1, 9}} {
+	for _, input := range []Vector{{4, 4}, {0, 2}, {1, 4}} {
 		if _, err := robot.SetEmotion(context.Background(), input); err != nil {
 			t.Fatal(err)
 		}
@@ -57,7 +57,7 @@ func TestRobotKeepsOnlyLatestTargetDuringReturn(t *testing.T) {
 
 func TestRobotCanReturnToSameExpressionAndRestart(t *testing.T) {
 	robot, _ := testRobot(t)
-	for _, input := range []Vector{{9, 9}, {5, 5}} {
+	for _, input := range []Vector{{4, 4}, {2, 2}} {
 		if _, err := robot.SetEmotion(context.Background(), input); err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +69,7 @@ func TestRobotCanReturnToSameExpressionAndRestart(t *testing.T) {
 	if got.Expression.Name != "normal" || got.Transitioning {
 		t.Fatalf("目标改回当前图时，应完成回正再重新播放：%+v", got)
 	}
-	if _, err := robot.SetEmotion(context.Background(), Vector{1, 9}); err != nil {
+	if _, err := robot.SetEmotion(context.Background(), Vector{1, 4}); err != nil {
 		t.Fatalf("重新播放后应允许再次 Finish：%v", err)
 	}
 }
@@ -83,7 +83,7 @@ func TestRobotRejectsInvalidInputWithoutChangingState(t *testing.T) {
 	if err := robot.face.SetVisible(false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := robot.SetEmotion(context.Background(), Vector{9, 9}); err == nil || robot.Emotion() != before {
+	if _, err := robot.SetEmotion(context.Background(), Vector{4, 4}); err == nil || robot.Emotion() != before {
 		t.Fatal("请求回正失败时不应修改状态")
 	}
 }

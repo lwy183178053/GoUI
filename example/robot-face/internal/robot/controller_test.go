@@ -21,7 +21,7 @@ func testRobot(t *testing.T) (*Controller, string) {
 func TestRobotStartsWithNormalExpression(t *testing.T) {
 	robot, _ := testRobot(t)
 	got := robot.Emotion()
-	if got.Vector != (Vector{5, 5}) || got.Expression.Name != "normal" || got.Target.Name != "normal" || got.Transitioning {
+	if got.Vector != (Vector{2, 2}) || got.Expression.Name != "normal" || got.Target.Name != "normal" || got.Transitioning {
 		t.Fatalf("初始状态不正确：%+v", got)
 	}
 }

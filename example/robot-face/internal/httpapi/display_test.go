@@ -11,8 +11,8 @@ import (
 )
 
 func TestDisplayHTTPAPI(t *testing.T) {
-	controller, directory := testController(t)
-	router := New(controller, directory)
+	controller := testController(t)
+	router := New(controller, testSnapshot)
 	request := func(method, path, body string) *httptest.ResponseRecorder {
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, httptest.NewRequest(method, path, strings.NewReader(body)))

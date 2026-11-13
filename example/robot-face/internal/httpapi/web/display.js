@@ -9,16 +9,16 @@
   const message = document.querySelector("#display-message");
   const labels = {idle: "待命", listening: "正在倾听", thinking: "正在思考", speaking: "正在回答"};
   let busy = false;
-  let initialized = false;
+  let dirty = false;
   let revision = 0;
 
   function render(data) {
     document.querySelector("#device-text").textContent = data.current.text || "—";
     document.querySelector("#device-status").textContent = labels[data.current.status];
-    if (!initialized) {
+    // 没有未提交的编辑时同步设备值；保留正在输入的草稿。
+    if (!dirty) {
       if (document.activeElement !== text) text.value = data.current.text;
       if (document.activeElement !== status) status.value = data.current.status;
-      initialized = true;
     }
   }
 
@@ -42,6 +42,7 @@
     form.querySelectorAll("button, input, select, textarea").forEach(control => { control.disabled = true; });
     try {
       await action();
+      dirty = false;
       message.textContent = "已更新设备底部文字。";
       message.dataset.error = "false";
     } catch (error) {
@@ -52,6 +53,9 @@
       form.querySelectorAll("button, input, select, textarea").forEach(control => { control.disabled = false; });
     }
   }
+
+  text.addEventListener("input", () => { dirty = true; });
+  status.addEventListener("change", () => { dirty = true; });
 
   form.addEventListener("submit", event => {
     event.preventDefault();

@@ -2,9 +2,10 @@
 package httpapi
 
 import (
+	"context"
 	"embed"
+	"image"
 	"net/http"
-	"path/filepath"
 
 	"example.com/goui-robot-face/internal/robot"
 	"github.com/gin-gonic/gin"
@@ -15,7 +16,7 @@ import (
 //go:embed web/*
 var webFiles embed.FS
 
-func New(controller *robot.Controller, uiDirectory string) *gin.Engine {
+func New(controller *robot.Controller, capture func(context.Context) (*image.RGBA, error)) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 	_ = router.SetTrustedProxies(nil)
@@ -23,6 +24,7 @@ func New(controller *robot.Controller, uiDirectory string) *gin.Engine {
 		"/":           {"web/index.html", "text/html; charset=utf-8"},
 		"/styles.css": {"web/styles.css", "text/css; charset=utf-8"},
 		"/display.js": {"web/display.js", "text/javascript; charset=utf-8"},
+		"/preview.js": {"web/preview.js", "text/javascript; charset=utf-8"},
 		"/app.js":     {"web/app.js", "text/javascript; charset=utf-8"},
 	}
 	for route, asset := range assets {
@@ -34,19 +36,7 @@ func New(controller *robot.Controller, uiDirectory string) *gin.Engine {
 			c.Data(http.StatusOK, asset.contentType, data)
 		})
 	}
-	// 这里只保存文件名，不解码 GIF；不开放字体、PDF 和任意磁盘路径。
-	files := make(map[string]bool)
-	for _, item := range robot.Expressions() {
-		files[item.File] = true
-	}
-	router.GET("/gif/:file", func(c *gin.Context) {
-		name := c.Param("file")
-		if !files[name] {
-			c.JSON(http.StatusNotFound, gin.H{"error": "GIF 不存在"})
-			return
-		}
-		c.File(filepath.Join(uiDirectory, "gif", name))
-	})
+	registerPreview(router, capture)
 	registerEmotion(router, controller)
 	registerDisplay(router, controller)
 	return router

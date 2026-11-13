@@ -51,7 +51,7 @@ func run(uiDirectory, address string) error {
 
 	gin.SetMode(gin.ReleaseMode)
 	server := &http.Server{
-		Handler:           httpapi.New(controller, directory),
+		Handler:           httpapi.New(controller, app.Snapshot),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      5 * time.Second,
@@ -77,7 +77,7 @@ func run(uiDirectory, address string) error {
 	}()
 	log.Printf("Web 调试面板：http://localhost:%d；远程使用本机 IP 和同一端口", listener.Addr().(*net.TCPAddr).Port)
 	log.Print("POST /api/display 可更新回答文字和倾听、思考、说话状态")
-	log.Print("POST /api/emotion  请求示例：{\"valence\":8,\"arousal\":9}")
+	log.Print("POST /api/emotion  请求示例：{\"valence\":4,\"arousal\":4}")
 
 	// 窗口循环保留在主 goroutine；HTTP 通过 Dispatch 提交组件更新。
 	windowErr := app.Run()

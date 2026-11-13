@@ -26,12 +26,12 @@ func TestNearestExpressionAndStableTie(t *testing.T) {
 		input Vector
 		name  string
 	}{
-		{Vector{5, 5}, "normal"},
-		{Vector{2, 8}, "angry"},
-		{Vector{0, 0}, "sad"},
-		{Vector{10, 10}, "happy"},
-		{Vector{8, 9}, "happy"},  // 开心和运动等距，采用登记顺序。
-		{Vector{5, 1}, "asleep"}, // 睡觉、静音和困倦等距，采用登记顺序。
+		{Vector{2, 2}, "normal"},
+		{Vector{1, 4}, "angry"},
+		{Vector{4, 4}, "happy"},
+		{Vector{1, 2}, "ponder"},
+		{Vector{0, 0}, "sigh"}, // 空格子等距时采用登记顺序。
+		{Vector{1, 1}, "mute"},
 	} {
 		got, err := nearestExpression(test.input)
 		if err != nil || got.Name != test.name {
@@ -41,9 +41,21 @@ func TestNearestExpressionAndStableTie(t *testing.T) {
 }
 
 func TestVectorRejectsOutOfRangeCoordinates(t *testing.T) {
-	for _, input := range []Vector{{-1, 5}, {11, 5}, {5, -1}, {5, 11}} {
+	for _, input := range []Vector{{-1, 2}, {5, 2}, {2, -1}, {2, 5}} {
 		if _, err := nearestExpression(input); err == nil {
 			t.Errorf("非法坐标 %+v 没有报错", input)
+		}
+	}
+}
+
+// 五档只产生 25 个输入；每一格都必须有确定结果。
+func TestEveryGridCellIsValid(t *testing.T) {
+	for y := 0; y < GridSize; y++ {
+		for x := 0; x < GridSize; x++ {
+			got, err := nearestExpression(Vector{x, y})
+			if err != nil || got.Name == "" {
+				t.Fatalf("坐标 [%d,%d] 无法选择表情: %v", x, y, err)
+			}
 		}
 	}
 }

@@ -12,7 +12,7 @@ import (
 func registerEmotion(router *gin.Engine, controller *robot.Controller) {
 	reply := func(c *gin.Context, current robot.EmotionState) {
 		c.Header("Cache-Control", "no-store")
-		c.JSON(http.StatusOK, gin.H{"current": current, "expressions": robot.Expressions()})
+		c.JSON(http.StatusOK, gin.H{"current": current, "expressions": robot.Expressions(), "grid_size": robot.GridSize})
 	}
 	router.GET("/api/emotion", func(c *gin.Context) {
 		reply(c, controller.Emotion())

@@ -50,7 +50,7 @@ func New(page *goui.Page, dispatch func(context.Context, func(*goui.Page) error)
 	if err != nil {
 		return nil, err
 	}
-	initial := Vector{Valence: 5, Arousal: 5}
+	initial := Vector{Valence: 2, Arousal: 2}
 	normal, err := nearestExpression(initial)
 	if err != nil {
 		return nil, err
