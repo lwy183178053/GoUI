@@ -37,6 +37,8 @@ func (p *presenter) Run(source backend.FrameSource, onReady func() error) error 
 		return err
 	}
 
+	// 设备窗口失去焦点后仍需接收网络控制并继续播放动画。
+	ebiten.SetRunnableOnUnfocused(true)
 	ebiten.SetWindowTitle(p.options.Title)
 	ebiten.SetMonitor(monitor)
 	ebiten.SetWindowSize(width, height)
@@ -117,6 +119,12 @@ func (g *preview) Update() error {
 				g.err = err
 				return err
 			}
+		}
+	}
+	if updater, ok := g.source.(backend.Updater); ok {
+		if err := updater.Update(); err != nil {
+			g.err = err
+			return err
 		}
 	}
 	handler, ok := g.source.(backend.PointerHandler)

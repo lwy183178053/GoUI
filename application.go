@@ -3,6 +3,7 @@ package goui
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/lwy183178053/GoUI/internal/backend/window"
 	"github.com/lwy183178053/GoUI/internal/render/software"
@@ -16,6 +17,9 @@ type Application struct {
 	page     *Page
 	window   window.Presenter
 	run      bool
+	running  atomic.Bool
+	updates  chan pageUpdate
+	done     chan struct{}
 }
 
 // Open 从 UI 目录加载 config.xml、main.xml 和相关资源。
@@ -29,7 +33,10 @@ func Open(directory string) (*Application, error) {
 		return nil, err
 	}
 	page := &Page{renderer: renderer}
-	return &Application{document: document, renderer: renderer, page: page}, nil
+	return &Application{
+		document: document, renderer: renderer, page: page,
+		updates: make(chan pageUpdate, 64), done: make(chan struct{}),
+	}, nil
 }
 
 // Page 返回用于查找和操作 XML 组件的页面对象。
@@ -105,5 +112,11 @@ func (app *Application) Run() error {
 	})
 	app.window = presenter
 	defer func() { app.window = nil }()
-	return presenter.Run(app.renderer, nil)
+	app.running.Store(true)
+	defer func() {
+		app.running.Store(false)
+		close(app.done)
+	}()
+	source := &applicationSource{Renderer: app.renderer, page: app.page, updates: app.updates}
+	return presenter.Run(source, nil)
 }

@@ -6,7 +6,7 @@ GoUI 使用 XML 描述界面、使用 Go 编写业务代码。框架是普通 Go
 
 ## 运行示例
 
-需要 Go 1.25 或更新版本。仓库内示例是一个独立 Go 模块：
+需要 Go 1.25 或更新版本。每个示例都是独立 Go 模块，普通 UI 示例：
 
 ```powershell
 cd example/hello-world
@@ -18,6 +18,8 @@ go run .
 ```powershell
 go build -o GoUI.exe .
 ```
+
+机器人 GIF 表情示例在 `example/robot-face/` 中，同样在该目录执行 `go run .`。设备窗口只显示表情；浏览器打开 `http://localhost:8080/` 可用 0～10 的二维坐标调试，也可以通过 Gin 的 `POST /api/emotion` 接口控制。具体调用和 Linux 部署见该示例的 README。
 
 `GoUI.exe` 运行时需要同目录下的 `ui/` 资源目录。示例通过 `goui.Open("./ui")` 加载它，因此从项目目录启动程序。
 
@@ -74,7 +76,7 @@ func main() {
 }
 ```
 
-`Open` 的参数是直接包含 `config.xml` 和 `main.xml` 的 UI 目录。`Page` 提供 `GetBlock`、`GetText`、`GetImage`、`GetButton`，Getter 返回组件和错误，ID 不存在或标签类型不符会立即报错。组件共用 `SetColor`、`SetVisible` 和 `MoveTo`、`RotateTo`、`ScaleTo` 动画方法；Text 还提供 `SetText`、`SetTextColor`，Button 还提供 `SetDisabled`、`OnMouseEnter`、`OnMouseLeave`、`OnMouseDown`、`OnMouseUp` 和 `OnClick`。Button 的 XML 属性 `hover-color` 可设置鼠标进入时的填充色，移出后自动恢复 `color`；每种鼠标事件在一个按钮上只能绑定一次，XML 不再声明 `on-click`。
+`Open` 的参数是直接包含 `config.xml` 和 `main.xml` 的 UI 目录。`Page` 提供 `GetBlock`、`GetText`、`GetImage` 和 `GetButton`，Getter 返回组件和错误，ID 不存在或标签类型不符会立即报错。组件共用 `SetColor`、`SetVisible` 和 `MoveTo`、`RotateTo`、`ScaleTo` 动画方法；Text 还提供 `SetText`、`SetTextColor`，Button 还提供 `SetDisabled`、`OnMouseEnter`、`OnMouseLeave`、`OnMouseDown`、`OnMouseUp` 和 `OnClick`。Button 的 XML 属性 `hover-color` 可设置鼠标进入时的填充色，移出后自动恢复 `color`；每种鼠标事件在一个按钮上只能绑定一次，XML 不再声明 `on-click`。
 
 窗口可以通过 `<window decorated="false">` 隐藏系统标题栏和边框，再将 Button 事件绑定到 `app.MinimizeWindow()`、`app.ToggleMaximizeWindow()` 和 `app.CloseWindow()`。最大化/还原需要 `resizable="true"`。
 
@@ -85,6 +87,46 @@ check(closeButton.OnClick(func(*goui.Page) error {
 ```
 
 动画方法的时长使用 `time.Duration`，例如 `500*time.Millisecond`。移动目标是父节点坐标中的 `position`，旋转和缩放围绕组件的 `pivot` 执行；Text、Image、Button 因嵌入 Block 也可使用这些方法。动画使用线性插值，时长为 0 时立即生效。
+
+## 从网络或设备回调更新页面
+
+组件状态和绘制应在窗口主循环中串行修改。初始化和按钮回调直接调用组件方法；HTTP、网络和设备的外部 goroutine 使用 `app.Dispatch`：
+
+```go
+err := app.Dispatch(ctx, func(page *goui.Page) error {
+    status, err := page.GetText("status")
+    if err != nil { return err }
+    return status.SetText("收到设备状态")
+})
+```
+
+`Dispatch` 等待回调执行完成，并返回业务错误或 context 错误；应用未运行或已停止时返回错误。尚未执行就已经取消的任务会被跳过。回调保持简短，不在其中执行网络请求或长时间计算；主循环内不要再次调用 `Dispatch`。
+
+## GIF 表情
+
+表情动画直接使用普通的 `<image>` 标签，不需要单独的表情组件或资源 XML：
+
+```xml
+<image id="normal" src="gif/smile_[0.5s].gif"
+  size="500,500" fit="contain" />
+<image id="happy" src="gif/laugh_[0.5s, 1.0s].gif"
+  size="500,500" fit="contain" visible="false" />
+```
+
+多帧 GIF 按文件内的帧延迟和循环次数自动播放，复用窗口帧循环，不增加 goroutine 或定时器；只有帧变化时才更新对应图片的脏区。普通图片和 GIF 都支持 `stretch`、`contain`、`cover`、圆角和 Block 动画。
+
+切换表情只需隐藏上一张、显示下一张，不叠加两个表情，也不做额外淡入淡出：
+
+```go
+normal, err := page.GetImage("normal")
+if err != nil { return err }
+happy, err := page.GetImage("happy")
+if err != nil { return err }
+if err := normal.SetVisible(false); err != nil { return err }
+return happy.SetVisible(true)
+```
+
+隐藏图片或其父 Block 时停止推进 GIF，并释放播放画布；重新显示时从第一帧播放。有限次播放结束后保持最后一帧，不会擅自改成无限循环。播放速度取 GIF 文件里的延迟，而不是文件名中标注的时长。需要循环或调整动作节奏时，在制作 GIF 时设置。
 
 ## 配置
 
@@ -111,22 +153,31 @@ check(closeButton.OnClick(func(*goui.Page) error {
 ## 代码目录
 
 - `application.go`：`Open`、`Application.Page` 和 `Application.Run`，连接 XML 加载、软件渲染与窗口后端。
+- `dispatch.go`：将外部 goroutine 的页面更新排队，交给窗口主循环执行并返回结果。
+- `dispatch_test.go`：更新执行、取消、退出和并发提交测试。
 - `page.go`：公开的 `Page` 及 Block、Text、Image、Button 类型化 API。Text、Image、Button 通过 Go 结构体嵌入 Block，共享基础方法。
 - `display.go`：公开桌面显示器信息和 `Displays()` 查询函数。
 - `go.mod`、`go.sum`：框架模块地址和依赖版本。
-- `internal/ui/`：XML 解析、config 校验、字体/图片读取、组件展开和节点模型。
+- `internal/ui/`：XML 解析、config 校验、字体与图片资源读取、组件展开和节点模型。
 - `internal/layout/`：锚点布局、像素取整、按钮命中和重绘范围计算。
 - `internal/render/software/render.go`：组装字体、节点绘制顺序、RGBA 帧缓存和组件状态更新。
+- `internal/ui/animated_image.go`：读取 GIF 的帧、延迟、循环次数和帧处置规则，按需合成当前帧。
+- `internal/render/software/image_animation.go`：在窗口帧循环中推进可见 GIF、重置隐藏动画并使图片缓存失效。
 - `internal/render/software/animation.go`：移动、旋转、缩放的线性插值，以及绘制和命中共用的仿射变换。
 - `internal/render/software/input.go`：鼠标事件注册、按钮事件派发和逆绘制顺序命中。
 - `internal/render/software/shapes.go`、`text.go`、`images.go`：圆角矩形、文字排版和图片缩放绘制。
-- `internal/backend/backend.go`：帧来源、呈现后端和指针输入接口。
+- `internal/backend/backend.go`：帧来源、呈现后端、排队更新和指针输入接口。
 - `internal/backend/window/`：Ebitengine 桌面窗口、Windows/Linux 显示器枚举和其它系统的明确错误实现。
 - `doc/`：可直接打开的 XML 教程页面、样式和侧栏导航脚本。
 - `example/hello-world/`：可直接运行的独立 Go 项目示例。
 - `example/hello-world/main.go`：示例业务入口和按钮事件绑定。
 - `example/hello-world/ui/`：示例 `config.xml`、`main.xml`、组件、字体和图片资源。
-- `example/robot-face/`：机器人动态矢量表情示例的预备目录；等矢量组件实现后补齐可运行项目。
+- `example/robot-face/`：独立机器人 GIF 表情示例，1080×720 黑底窗口，23 张 GIF、二维坐标接口和 Web 调试面板。
+- `example/robot-face/main.go`：启动窗口、Gin 服务并统一处理退出。
+- `example/robot-face/emotion.go`：素材坐标、最近表情选择和主循环中的图片切换。
+- `example/robot-face/server.go`：HTTP 路由、输入校验和调试资源。
+- `example/robot-face/web/`：不依赖前端工具链的 HTML、CSS 和 JavaScript 调试面板。
+- `example/robot-face/ui/`：纯表情页面、窗口配置和原始素材。
 
 框架内部实现都留在 `internal/`，用户业务只需要导入根包 `github.com/lwy183178053/GoUI`。
 
@@ -143,8 +194,8 @@ go vet ./...
 示例模块单独检查：
 
 ```powershell
-cd example/hello-world
-go test ./...
+go -C example/hello-world test ./...
+go -C example/robot-face test ./...
 ```
 
 无 CGO 桌面交叉编译检查：

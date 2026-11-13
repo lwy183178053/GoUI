@@ -31,19 +31,20 @@ type Renderer struct {
 	nodes    map[string]*ui.Node
 	frame    *image.RGBA
 	// 两个帧句柄共用像素内存，交替返回以通知窗口后端画面有更新。
-	frameA    *image.RGBA
-	frameB    *image.RGBA
-	published *image.RGBA
-	dirty     image.Rectangle
-	images    map[*ui.Node]*image.RGBA
-	layers    map[*ui.Node]*image.RGBA
-	maskCache map[roundedMaskKey]*image.Alpha
-	handlers  map[string]map[ui.ButtonEvent]func() error
-	motions   map[string]*animation
-	world     map[*ui.Node]affine
-	hovered   *ui.Node
-	pressed   *ui.Node
-	closed    bool
+	frameA       *image.RGBA
+	frameB       *image.RGBA
+	published    *image.RGBA
+	dirty        image.Rectangle
+	images       map[*ui.Node]*image.RGBA
+	layers       map[*ui.Node]*image.RGBA
+	maskCache    map[roundedMaskKey]*image.Alpha
+	handlers     map[string]map[ui.ButtonEvent]func() error
+	motions      map[string]*animation
+	imagePlayers map[*ui.Node]*imagePlayback
+	world        map[*ui.Node]affine
+	hovered      *ui.Node
+	pressed      *ui.Node
+	closed       bool
 }
 
 func New(document *ui.Document) (*Renderer, error) {
@@ -51,16 +52,17 @@ func New(document *ui.Document) (*Renderer, error) {
 		return nil, errors.New("cannot render an empty document")
 	}
 	renderer := &Renderer{
-		document:  document,
-		faces:     make(map[faceKey]font.Face),
-		boxes:     make(map[string]*layout.Box),
-		nodes:     make(map[string]*ui.Node),
-		images:    make(map[*ui.Node]*image.RGBA),
-		layers:    make(map[*ui.Node]*image.RGBA),
-		maskCache: make(map[roundedMaskKey]*image.Alpha),
-		handlers:  make(map[string]map[ui.ButtonEvent]func() error),
-		motions:   make(map[string]*animation),
-		world:     make(map[*ui.Node]affine),
+		document:     document,
+		faces:        make(map[faceKey]font.Face),
+		boxes:        make(map[string]*layout.Box),
+		nodes:        make(map[string]*ui.Node),
+		images:       make(map[*ui.Node]*image.RGBA),
+		layers:       make(map[*ui.Node]*image.RGBA),
+		maskCache:    make(map[roundedMaskKey]*image.Alpha),
+		handlers:     make(map[string]map[ui.ButtonEvent]func() error),
+		motions:      make(map[string]*animation),
+		imagePlayers: make(map[*ui.Node]*imagePlayback),
+		world:        make(map[*ui.Node]affine),
 	}
 	if err := renderer.prepare(document.Root); err != nil {
 		_ = renderer.Close()
@@ -72,6 +74,9 @@ func New(document *ui.Document) (*Renderer, error) {
 func (r *Renderer) prepare(node *ui.Node) error {
 	if node.ID != "" {
 		r.nodes[node.ID] = node
+	}
+	if node.Image != nil && node.Image.Animation != nil {
+		r.imagePlayers[node] = newImagePlayback(node.Image.Animation)
 	}
 	if node.Text != nil {
 		key := faceKey{node.Text.Font, node.Text.FontSize}
@@ -111,7 +116,11 @@ func (r *Renderer) Frame(width, height int) (*image.RGBA, error) {
 		r.rebuildLayout(width, height)
 		r.dirty = r.frame.Bounds()
 	}
-	r.advanceAnimations(time.Now())
+	now := time.Now()
+	r.advanceAnimations(now)
+	if err := r.advanceImageAnimations(r.layout, now); err != nil {
+		return nil, err
+	}
 	if r.dirty.Empty() {
 		return r.published, nil
 	}
@@ -193,7 +202,11 @@ func (r *Renderer) paintSelf(frame *image.RGBA, box *layout.Box, limit image.Rec
 		if node.Radius > 0 {
 			mask = r.roundedMask(box.Pixels.Size(), node.Radius)
 		}
-		paintImage(frame, box.Pixels, limit, r.scaledImage(node, box.Pixels), node.Radius, mask)
+		source := node.Image.Image
+		if player := r.imagePlayers[node]; player != nil {
+			source = player.frame()
+		}
+		paintImage(frame, box.Pixels, limit, r.scaledImage(node, box.Pixels, source), node.Radius, mask)
 	}
 	if node.Text != nil {
 		face := r.faces[faceKey{node.Text.Font, node.Text.FontSize}]
@@ -328,6 +341,7 @@ func (r *Renderer) SetVisible(id string, visible bool) error {
 	}
 	if node.Visible != visible {
 		node.Visible = visible
+		r.resetImageAnimations(node)
 		if box != nil {
 			r.invalidate(layout.SubtreeBounds(box))
 		}
@@ -378,6 +392,7 @@ func (r *Renderer) Close() error {
 	r.maskCache = nil
 	r.handlers = nil
 	r.motions = nil
+	r.imagePlayers = nil
 	r.world = nil
 	return errors.Join(errs...)
 }

@@ -1,0 +1,8 @@
+<config>
+  <app name="GoUI GIF Robot" version="1.0.0" />
+  <window backend="desktop" display="0" width="1080" height="720"
+    fullscreen="false" decorated="false" resizable="false" />
+  <fonts>
+    <font name="default" src="fonts/AlibabaPuHuiTi-3-55-Regular.ttf" />
+  </fonts>
+</config>

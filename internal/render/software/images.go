@@ -10,9 +10,9 @@ import (
 	xdraw "golang.org/x/image/draw"
 )
 
-func (r *Renderer) scaledImage(node *ui.Node, rect image.Rectangle) *image.RGBA {
+func (r *Renderer) scaledImage(node *ui.Node, rect image.Rectangle, sourceImage image.Image) *image.RGBA {
 	style := node.Image
-	if style == nil || style.Image == nil || rect.Empty() {
+	if style == nil || sourceImage == nil || rect.Empty() {
 		return nil
 	}
 	if cached := r.images[node]; cached != nil && cached.Bounds().Size() == rect.Size() {
@@ -22,7 +22,7 @@ func (r *Renderer) scaledImage(node *ui.Node, rect image.Rectangle) *image.RGBA 
 	width, height := rect.Dx(), rect.Dy()
 	imageRect := image.Rect(0, 0, width, height)
 	scaled := image.NewRGBA(imageRect)
-	source := style.Image.Bounds()
+	source := sourceImage.Bounds()
 	sourceRect := source
 	destination := imageRect
 
@@ -44,7 +44,7 @@ func (r *Renderer) scaledImage(node *ui.Node, rect image.Rectangle) *image.RGBA 
 			sourceRect = image.Rect(source.Min.X, top, source.Max.X, top+cropHeight)
 		}
 	}
-	xdraw.CatmullRom.Scale(scaled, destination, style.Image, sourceRect, draw.Over, nil)
+	xdraw.CatmullRom.Scale(scaled, destination, sourceImage, sourceRect, draw.Over, nil)
 	r.images[node] = scaled
 	return scaled
 }

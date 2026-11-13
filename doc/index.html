@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="GoUI XML 使用教程：UI 目录、字体配置、组件复用、Block 布局、按钮事件与动画。">
+  <meta name="description" content="GoUI XML 使用教程：UI 目录、字体配置、Block 布局、按钮事件、Block 动画与 GIF 表情。">
   <title>GoUI XML 标签使用教程</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -74,7 +74,7 @@
       <div class="hero-inner">
         <div class="eyebrow">GoUI / XML UI Guide</div>
         <h1><span class="hero-title-line">GoUI XML</span> <span class="hero-title-line">标签使用教程</span></h1>
-        <p class="hero-lede">用 Block 描述界面，用 <code>anchor</code>、<code>pivot</code>、<code>position</code> 和 <code>size</code> 布局；当 <code>size</code> 使用 <code>-1</code> 时，再用 <code>margin</code> 控制边距。Text、Image、Button 共享 Block 的基础属性，只增加各自必需的能力。</p>
+        <p class="hero-lede">用 Block 描述界面，用 <code>anchor</code>、<code>pivot</code>、<code>position</code> 和 <code>size</code> 布局；当 <code>size</code> 使用 <code>-1</code> 时，再用 <code>margin</code> 控制边距。Text、Image 和 Button 共享 Block 的基础属性，只增加各自需要的能力。</p>
         <div class="hero-meta"><span class="tag primary">标签规范 0.1</span><span class="tag">纯 Go</span><span class="tag">桌面窗口</span><span class="tag">Block 布局</span></div>
       </div>
     </header>
@@ -425,7 +425,7 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
           <table>
             <thead><tr><th>属性</th><th>类型 / 默认值</th><th>说明</th></tr></thead>
             <tbody>
-              <tr><td>src</td><td>路径，必需</td><td>资源路径，相对于启动时指定的 UI 目录，例如 <code>assets/board.png</code>。预览版可读取 PNG、JPEG 和 GIF 静态帧。</td></tr>
+              <tr><td>src</td><td>路径，必需</td><td>资源路径，相对于启动时指定的 UI 目录，例如 <code>assets/board.png</code>。支持 PNG、JPEG 和 GIF；多帧 GIF 按文件的帧延迟与循环次数播放。</td></tr>
               <tr><td>fit</td><td>stretch / contain / cover，默认 stretch</td><td><code>stretch</code> 拉伸填满，<code>contain</code> 保持比例完整显示，<code>cover</code> 保持比例铺满并裁剪。</td></tr>
             </tbody>
           </table>
@@ -439,6 +439,21 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
   src="assets/board.png"
   fit="contain" /&gt;</code></pre>
         <p class="small">节点矩形由 <code>size</code> 决定。<code>contain</code> 将图片等比居中，留白处显示当前节点的填充色；<code>cover</code> 将图片等比居中并裁掉超出自身矩形的部分。<code>radius</code> 同时裁切图片和填充色。Image 不包含子节点。</p>
+        <h3>用 GIF 播放表情</h3>
+        <p>多帧 GIF 加载后自动播放，不需要额外标签、播放 API 或独立定时器。帧延迟、循环次数和局部帧的处置规则都来自 GIF 文件；有限次播放结束后保持最后一帧。文件名里的时长仅用于描述素材，不决定播放速度。</p>
+        <pre><code class="language-xml">&lt;image id="normal" src="gif/smile_[0.5s].gif"
+  size="500,500" fit="contain" /&gt;
+&lt;image id="happy" src="gif/laugh_[0.5s, 1.0s].gif"
+  size="500,500" fit="contain" visible="false" /&gt;</code></pre>
+        <p>把不同表情放在相同位置，每次只显示一张。切换时在同一个按钮回调中隐藏旧图片、显示新图片，不叠加表情，也不需要淡入淡出：</p>
+        <pre><code class="language-go">normal, err := page.GetImage("normal")
+if err != nil { return err }
+happy, err := page.GetImage("happy")
+if err != nil { return err }
+if err := normal.SetVisible(false); err != nil { return err }
+return happy.SetVisible(true)</code></pre>
+        <p>隐藏图片或它的父 Block 后，GIF 不再推进并释放播放画布；重新显示时从第一帧开始。已经可见的图片再次调用 <code>SetVisible(true)</code> 不会重播。需要主动重播时，在同一个回调中先隐藏再显示该图片。GIF 仍共享 Image 的缩放、圆角和 Block 动画能力。</p>
+        <p class="small">可运行示例位于 <code>example/robot-face/</code>。设备页面只显示黑底 GIF，23 张素材按 0～10 的情绪值、唤醒度选择最近坐标。运行后访问 <code>http://localhost:8080/</code> 使用 Web 调试面板，或向 <code>POST /api/emotion</code> 发送 <code>{"valence":9,"arousal":9}</code>。HTTP 更新通过 <code>app.Dispatch</code> 交给窗口主循环执行；下载素材保持不变。</p>
       </section>
 
       <section class="doc-section" id="button">
@@ -573,7 +588,7 @@ return button.OnClick(func(*goui.Page) error {
       </section>
 
       <section class="doc-section" id="animation">
-        <div class="section-kicker">17 / Go API</div>
+        <div class="section-kicker">18 / Go API</div>
         <h2>Block 动画方法</h2>
         <p class="lead">动画由 Go 代码启动，不在 XML 中另加动画标签或属性。每个方法填写目标值和持续时间，使用线性插值；持续时间为 0 时立即生效，负数会返回错误。</p>
         <div class="table-wrap">
@@ -586,7 +601,7 @@ return button.OnClick(func(*goui.Page) error {
             </tbody>
           </table>
         </div>
-        <p>参数中的 <code>duration</code> 使用 Go 的 <code>time.Duration</code>，例如 <code>300*time.Millisecond</code> 或 <code>time.Second</code>。再次调用同一方法会从当前动画位置继续；移动、旋转和缩放可以同时进行。父节点的旋转和缩放会作用于整个子树。回调返回的错误会传回窗口循环并结束 <code>Run</code>。</p>
+        <p>参数中的 <code>duration</code> 使用 Go 的 <code>time.Duration</code>，例如 <code>300*time.Millisecond</code> 或 <code>time.Second</code>。再次调用同一方法会从当前动画位置继续；移动、旋转和缩放可以同时进行。父节点的旋转和缩放会作用于整个子树。按钮事件回调返回的错误会传回窗口循环并结束 <code>Run</code>。</p>
         <pre><code class="language-go">import "time"
 
 target, err := page.GetBlock("motion-target")
@@ -600,7 +615,7 @@ return target.ScaleTo(1.5, 1.5, duration)</code></pre>
       </section>
 
       <section class="doc-section" id="pixels">
-        <div class="section-kicker">18 / GoUI XML</div>
+        <div class="section-kicker">17 / GoUI XML</div>
         <h2>小数坐标与像素取整</h2>
         <p class="lead">XML 中的像素位置、固定尺寸和边距填写整数，但锚点乘上父尺寸时，布局中间结果可能带小数。这是几何坐标，最后需要对应到实际像素网格。</p>
         <h3>为什么会算出 280.5</h3>
@@ -613,7 +628,7 @@ return target.ScaleTo(1.5, 1.5, duration)</code></pre>
       </section>
 
       <section class="doc-section" id="dirty">
-        <div class="section-kicker">19 / GoUI XML</div>
+        <div class="section-kicker">18 / GoUI XML</div>
         <h2>Block 与局部脏区重绘</h2>
         <p class="lead">所有可视节点共享 Block 的矩形和层级，因此状态变化可以标记对应节点需要重绘。XML 不需要增加脏标记标签或属性。Go API 可更新文字、颜色和可见状态，也可以启动位置、旋转和缩放动画。</p>
         <pre><code class="language-go">status, err := page.GetText("status")
@@ -628,11 +643,19 @@ button, err := page.GetButton("start-button")
 if err != nil { return err }
 return button.SetDisabled(true)</code></pre>
         <p>静态状态更新会使相关矩形进入脏区。下一次请求帧时，渲染器重画脏区内的背景和相交节点，未改变的部分沿用上一帧。动画运行时会重绘当前帧；移动动画重新计算布局，旋转和缩放会重绘受变换影响的画面。调整窗口尺寸时会重新计算整棵树。查找使用展开后的 ID，例如 <code>left.status.value</code>。</p>
+        <h3>从网络或设备回调更新页面</h3>
+        <p>组件修改和绘制在窗口主循环中串行进行。初始化与按钮回调可以直接操作组件；HTTP 或设备的外部 goroutine 使用 <code>app.Dispatch(ctx, callback)</code>，将一组修改交给主循环执行，并等待执行结果。</p>
+        <pre><code class="language-go">err := app.Dispatch(ctx, func(page *goui.Page) error {
+  status, err := page.GetText("status")
+  if err != nil { return err }
+  return status.SetText("收到设备状态")
+})</code></pre>
+        <p><code>Dispatch</code> 的回调保持简短，不在其中等待网络或再次调用 <code>Dispatch</code>。回调错误返回提交方；未启动、已关闭或 context 已取消时也返回错误。尚未执行就已经取消的任务会被跳过。</p>
         <div class="callout"><strong>变化范围。</strong>隐藏或显示分组时，脏区覆盖节点及子树的范围；子节点可以超出父矩形，因此这些越界区域也会被重画。当前更新接口不修改节点位置和尺寸。</div>
       </section>
 
       <section class="doc-section" id="font-files">
-        <div class="section-kicker">20 / GoUI XML</div>
+        <div class="section-kicker">19 / GoUI XML</div>
         <h2>字体文件怎么选</h2>
         <p class="lead">你下载的阿里巴巴普惠体 3.0 按字重分目录，每个目录中又提供多种格式。同一个字重使用一种合适的字体文件即可；本教程的字体注册使用 TTF。</p>
         <h3>同一个字重为什么有五种文件</h3>
@@ -665,7 +688,7 @@ return button.SetDisabled(true)</code></pre>
       </section>
 
       <section class="doc-section" id="complete">
-        <div class="section-kicker">21 / GoUI XML</div>
+        <div class="section-kicker">20 / GoUI XML</div>
         <h2>完整桌面预览页面</h2>
         <p class="lead">下面的 <code>main.xml</code> 组合了页面底色、顶部状态条、信息区和按钮。用户项目在 Go 入口中通过类型化 Getter 绑定按钮行为；UI 目录同时提供配置、默认字体和其它资源。</p>
         <pre><code class="language-xml">&lt;ui id="preview-root" color="#0D1117"&gt;
@@ -744,7 +767,7 @@ return button.SetDisabled(true)</code></pre>
       </section>
 
       <section class="doc-section" id="reference">
-        <div class="section-kicker">22 / GoUI XML</div>
+        <div class="section-kicker">21 / GoUI XML</div>
         <h2>标签速查</h2>
         <div class="table-wrap">
           <table>
@@ -753,7 +776,7 @@ return button.SetDisabled(true)</code></pre>
               <tr><td>&lt;ui&gt;</td><td>页面根节点，覆盖渲染目标。</td><td><code>id</code>、<code>color</code></td><td>是</td></tr>
               <tr><td>&lt;block&gt;</td><td>基础矩形、填充色、坐标空间和分组。</td><td>布局属性、通用属性；Go API 可移动、旋转、缩放</td><td>是</td></tr>
               <tr><td>&lt;text&gt;</td><td>显示单行或自动换行文字。</td><td>布局与通用属性、<code>font</code>、<code>font-size</code>、<code>text-color</code>、<code>align</code>、<code>valign</code>、<code>wrap</code></td><td>文字内容</td></tr>
-              <tr><td>&lt;image&gt;</td><td>绘制图片资源。</td><td>布局与通用属性、<code>src</code>、<code>fit</code></td><td>否</td></tr>
+              <tr><td>&lt;image&gt;</td><td>绘制静态图片或播放 GIF 动画。</td><td>布局与通用属性、<code>src</code>、<code>fit</code></td><td>否</td></tr>
               <tr><td>&lt;button&gt;</td><td>可命中的交互区域，可组合子节点。</td><td>布局与通用属性、<code>disabled</code>、<code>hover-color</code>；鼠标事件由 Go 代码绑定</td><td>是</td></tr>
               <tr><td>&lt;component&gt;</td><td>展开组件文件并给 ID 加点号前缀。</td><td>引用：<code>src</code>、<code>name</code>；定义：透明根包装</td><td>定义中可有多个节点；引用为空标签</td></tr>
             </tbody>

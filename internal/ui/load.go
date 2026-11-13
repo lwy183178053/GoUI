@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"image"
 	"image/color"
-	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"io/fs"
@@ -188,14 +187,34 @@ func loadImage(e *element, style *ImageStyle, fsys fs.FS, doc *Document) error {
 	if err != nil {
 		return at(e.source, "read image %q: %w", src, err)
 	}
-	decoded, _, decodeErr := image.Decode(bytes.NewReader(data))
+	_, format, decodeErr := image.DecodeConfig(bytes.NewReader(data))
 	if decodeErr != nil {
 		return at(e.source, "decode image %q: %w", src, decodeErr)
 	}
-	if decoded.Bounds().Empty() {
-		return at(e.source, "image %q has no pixels", src)
+	if format == "gif" {
+		animation, err := decodeGIF(data)
+		if err != nil {
+			return at(e.source, "decode GIF %q: %w", src, err)
+		}
+		if len(animation.Frames) > 1 {
+			style.Animation = animation
+		} else {
+			style.Image, err = animation.NewPlayer().Frame(0)
+			if err != nil {
+				return at(e.source, "decode GIF %q: %w", src, err)
+			}
+		}
+	} else {
+		decoded, _, err := image.Decode(bytes.NewReader(data))
+		if err != nil {
+			return at(e.source, "decode image %q: %w", src, err)
+		}
+		if decoded.Bounds().Empty() {
+			return at(e.source, "image %q has no pixels", src)
+		}
+		style.Image = decoded
 	}
-	style.Source, style.Image = src, decoded
+	style.Source = src
 	doc.addResource(asset)
 	return nil
 }

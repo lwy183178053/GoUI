@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>GoUI · 表情调试</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main class="workspace">
+    <header class="page-header">
+      <div class="topline">
+        <span class="wordmark">GoUI <span>/ ROBOT LAB</span></span>
+        <span id="connection" class="connection" role="status">连接中</span>
+      </div>
+      <p class="eyebrow">EXPRESSION CONTROL</p>
+      <h1>机器人表情调试</h1>
+      <p class="intro">输入一个情绪坐标，设备显示距离最近的 GIF。调试留在浏览器，屏幕只呈现表情。</p>
+    </header>
+
+    <div class="dashboard">
+      <section class="panel matrix-panel" aria-labelledby="matrix-title">
+        <div class="panel-heading">
+          <h2 id="matrix-title">情绪矩阵</h2>
+          <span class="caption">整数坐标 · 0—10</span>
+        </div>
+        <div class="matrix-top"><span>↑ 唤醒度 / 激动</span><span>点击任意位置应用</span></div>
+        <div id="matrix" class="matrix" role="group" aria-label="情绪值与唤醒度坐标"></div>
+        <div class="matrix-bottom"><span>消极</span><span>情绪值 →</span><span>积极</span></div>
+        <div class="legend"><span><i class="input-mark"></i>输入位置</span><span><i class="expression-mark"></i>选中的 GIF</span><span>带文字的格子是素材坐标</span></div>
+      </section>
+
+      <section class="panel state-panel" aria-labelledby="state-title">
+        <div class="panel-heading"><h2 id="state-title">设备当前状态</h2><span class="caption">每秒同步</span></div>
+        <div class="preview"><img id="preview" alt="当前表情素材预览" hidden></div>
+        <div class="current-summary">
+          <div><p class="caption">选中表情</p><h3 id="expression-name">等待连接</h3></div>
+          <span id="expression-code" class="code-name">—</span>
+        </div>
+        <p class="preview-note">这里是 GIF 素材预览，播放进度与设备独立。</p>
+        <form id="vector-form">
+          <div class="fields">
+            <label for="valence">情绪值 <span>消极 → 积极</span><input id="valence" name="valence" type="number" min="0" max="10" step="1" value="5" required></label>
+            <label for="arousal">唤醒度 <span>平静 → 激动</span><input id="arousal" name="arousal" type="number" min="0" max="10" step="1" value="5" required></label>
+          </div>
+          <button id="apply" class="primary" type="submit">应用向量 <span id="vector-value">[5, 5]</span></button>
+        </form>
+        <p id="message" class="message" role="status">正在读取设备状态…</p>
+      </section>
+    </div>
+
+    <section class="catalog-section" aria-labelledby="catalog-title">
+      <div class="section-heading"><h2 id="catalog-title">全部表情</h2><span id="expression-count" class="caption">素材坐标</span></div>
+      <p class="caption">点击名称直接发送这张 GIF 的坐标；相同结果会继续播放，不会重头开始。</p>
+      <div id="catalog" class="catalog"></div>
+    </section>
+
+    <details class="api-section">
+      <summary><span>接口调用</span><span class="caption">POST /api/emotion</span></summary>
+      <p>大模型或其它程序发送两个整数即可。GET 同一路径可读取当前状态和全部素材坐标。</p>
+      <pre><code id="api-example"></code></pre>
+    </details>
+    <footer><span>GoUI / GIF EXPRESSION</span><span>坐标决定选择，GIF 提供动作。</span></footer>
+  </main>
+</body>
+</html>

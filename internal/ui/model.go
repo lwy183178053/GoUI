@@ -79,9 +79,10 @@ type TextStyle struct {
 }
 
 type ImageStyle struct {
-	Source string
-	Image  image.Image
-	Fit    string
+	Source    string
+	Image     image.Image
+	Animation *GIFAnimation
+	Fit       string
 }
 
 type ButtonStyle struct {

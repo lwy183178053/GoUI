@@ -23,6 +23,7 @@ type pageControls interface {
 }
 
 // Page 用 XML 中的 id 查找组件。
+// 组件方法在窗口主循环中调用；外部 goroutine 使用 Application.Dispatch。
 type Page struct {
 	renderer pageControls
 }

@@ -21,3 +21,8 @@ type PointerHandler interface {
 	PointerDown(x, y int) error
 	PointerUp(x, y int) error
 }
+
+// Updater 在同一主循环中处理排队的业务更新；处理完再接收鼠标和绘制。
+type Updater interface {
+	Update() error
+}

@@ -103,6 +103,7 @@ func TestLoadingErrorsHaveLocations(t *testing.T) {
 		{"duplicate id", testConfig, "<ui id=\"x\">\n  <block id=\"x\" size=\"1,1\"/>\n</ui>", `duplicate id`},
 		{"empty id", testConfig, `<ui id=" "/>`, `id must not be empty`},
 		{"unknown tag", testConfig, `<ui><widget size="1,1"/></ui>`, `unsupported tag <widget>`},
+		{"removed face tag", testConfig, `<ui><face size="1,1" src="robot.xml"/></ui>`, `unsupported tag <face>`},
 		{"image invalid fit", testConfig, `<ui><image size="1,1" src="a.png" fit="stretchy"/></ui>`, `fit must be`},
 		{"button invalid disabled", testConfig, `<ui><button size="1,1" disabled="yes"/></ui>`, `disabled must be`},
 		{"button invalid hover color", testConfig, `<ui><button size="1,1" hover-color="red"/></ui>`, `hover-color must be`},

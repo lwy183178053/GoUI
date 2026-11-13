@@ -211,11 +211,11 @@ func TestScaledImagesAreCached(t *testing.T) {
 	node.Image = &ui.ImageStyle{Image: image.NewRGBA(image.Rect(0, 0, 2, 2)), Fit: "stretch"}
 	renderer := rendererFor(t, node)
 
-	first := renderer.scaledImage(node, image.Rect(0, 0, 8, 8))
-	if first == nil || renderer.scaledImage(node, image.Rect(0, 0, 8, 8)) != first {
+	first := renderer.scaledImage(node, image.Rect(0, 0, 8, 8), node.Image.Image)
+	if first == nil || renderer.scaledImage(node, image.Rect(0, 0, 8, 8), node.Image.Image) != first {
 		t.Fatal("unchanged image size was not cached")
 	}
-	if renderer.scaledImage(node, image.Rect(0, 0, 10, 8)) == first {
+	if renderer.scaledImage(node, image.Rect(0, 0, 10, 8), node.Image.Image) == first {
 		t.Fatal("resizing an image node reused the old scaled image")
 	}
 }
