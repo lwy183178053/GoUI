@@ -385,7 +385,7 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
           </table>
         </div>
         <p>Block 的子节点坐标相对于该 Block 的左上角。父 Block 只负责提供坐标空间和绘制顺序，不会因为子节点数量改变自己的大小。</p>
-        <p>Block 的 Go 类型还提供 <code>MoveTo</code>、<code>RotateTo</code> 和 <code>ScaleTo</code>。Text、Image、Button 都嵌入 Block，因此这些组件也能直接使用动画方法。</p>
+        <p>Block 的 Go 类型还提供 <code>MoveTo</code>、<code>RotateTo</code> 和 <code>ScaleTo</code>。Text、Image、Button 都嵌入 Block，因此这些组件也能直接使用动画方法。<code>MoveTo</code> 改变 <code>position</code>；<code>size=-1</code> 的轴始终按边距填充，不参与位移动画。</p>
         <div class="callout warn"><strong>不要把 block 当成自动布局容器。</strong>如果两个子节点要上下排列，就直接给它们不同的 <code>position</code>；如果要横向排列，也直接写各自的 X 偏移。</div>
       </section>
 
@@ -528,9 +528,9 @@ return button.OnClick(func(*goui.Page) error {
         <ol class="rule-list">
           <li>从绘制顺序的最上层向下，只检查可见的 Button。点击位置内的第一个按钮就是此次目标；Block、Text、Image 即使完全盖住它，也不会挡住命中。</li>
           <li>Button 的完整矩形参与命中，包括圆角外的矩形边角。普通文字或图标覆盖按钮时，仍可点击按钮。</li>
-          <li>按下时记录目标；释放时按当前位置重新查找最上层按钮。释放在另一个按钮上或按钮外时，不触发原按钮的 Click；MouseUp 则发给释放位置上的可用按钮。</li>
+          <li>按下时记录目标；释放时按当前位置重新查找最上层按钮。释放在另一个按钮上或按钮外时，不触发原按钮的 Click；MouseUp 则发给释放位置上的可用按钮。按压期间隐藏按钮、隐藏其父节点或禁用按钮，会取消该次按压和悬停；即使随后恢复，也需要重新按下。这条规则同样适用于 MouseUp 回调中的状态修改。</li>
           <li>最上层按钮禁用时，它不接收事件且会挡住下层按钮。设为 <code>visible="false"</code> 的节点及子树不参与命中。</li>
-          <li>父节点旋转或缩放后，按钮命中会使用同一个屏幕变换；命中区域仍是变换后的矩形。</li>
+          <li>位移动画的绘制和命中共用取整后的矩形；父节点旋转或缩放后，按钮命中使用同一个屏幕变换，命中区域仍是变换后的矩形。</li>
         </ol>
       </section>
 

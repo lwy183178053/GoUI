@@ -257,6 +257,22 @@ func (r *Renderer) Kind(id string) (ui.Kind, error) {
 	return node.Kind, nil
 }
 
+// nodeVisible 同时检查节点和所有父节点的可见性。
+func nodeVisible(root, target *ui.Node) bool {
+	if !root.Visible {
+		return false
+	}
+	if root == target {
+		return true
+	}
+	for _, child := range root.Children {
+		if nodeVisible(child, target) {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *Renderer) invalidate(rect image.Rectangle) {
 	if r.frame == nil {
 		return
@@ -341,6 +357,9 @@ func (r *Renderer) SetVisible(id string, visible bool) error {
 	}
 	if node.Visible != visible {
 		node.Visible = visible
+		if !visible {
+			r.cancelUnavailablePointers()
+		}
 		r.resetImageAnimations(node)
 		if box != nil {
 			r.invalidate(layout.SubtreeBounds(box))
@@ -349,7 +368,7 @@ func (r *Renderer) SetVisible(id string, visible bool) error {
 	return nil
 }
 
-// SetDisabled 修改按钮是否响应点击。
+// SetDisabled 修改按钮是否响应鼠标事件。
 func (r *Renderer) SetDisabled(id string, disabled bool) error {
 	node, box, err := r.node(id)
 	if err != nil {
@@ -360,6 +379,9 @@ func (r *Renderer) SetDisabled(id string, disabled bool) error {
 	}
 	if node.Button.Disabled != disabled {
 		node.Button.Disabled = disabled
+		if disabled {
+			r.cancelUnavailablePointers()
+		}
 		delete(r.layers, node)
 		if box != nil {
 			r.invalidate(layout.SubtreeBounds(box))

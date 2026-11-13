@@ -257,7 +257,7 @@ func TestComponentExpansionAndScopedIDs(t *testing.T) {
 	}
 	write("components/card.xml", `<component>
   <block id="panel" size="100,80">
-    <text id="title" size="90,24">Card</text>
+    <text id=" title " size="90,24">Card</text>
     <component src="parts/status.xml" name="status"/>
   </block>
 </component>`)
@@ -289,6 +289,8 @@ func TestComponentErrors(t *testing.T) {
 		{"duplicate instance", `<ui><component src="card.xml" name="same"/><component src="card.xml" name="same"/></ui>`, map[string]string{"card.xml": `<component><block size="1,1"/></component>`}, `duplicate component name`},
 		{"cycle", `<ui><component src="a.xml" name="one"/></ui>`, map[string]string{"a.xml": `<component><component src="b.xml" name="two"/></component>`, "b.xml": `<component><component src="a.xml" name="three"/></component>`}, `cycle detected`},
 		{"wrong root", `<ui><component src="card.xml" name="one"/></ui>`, map[string]string{"card.xml": `<block size="1,1"/>`}, `must have a <component> root`},
+		{"empty component id", `<ui><component src="card.xml" name="one"/></ui>`, map[string]string{"card.xml": `<component><block id="" size="1,1"/></component>`}, `id must not be empty`},
+		{"blank component id", `<ui><component src="card.xml" name="one"/></ui>`, map[string]string{"card.xml": `<component><block id="   " size="1,1"/></component>`}, `id must not be empty`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -301,6 +303,10 @@ func TestComponentErrors(t *testing.T) {
 			_, err := Load(dir)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("got %v, want error containing %q", err, tt.want)
+			}
+			var located *Error
+			if !errors.As(err, &located) || located.Source.File == "" || located.Source.Line < 1 || located.Source.Column < 1 {
+				t.Fatalf("组件错误缺少文件和行列位置：%v", err)
 			}
 		})
 	}

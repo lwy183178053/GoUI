@@ -19,8 +19,12 @@ func expandChildren(fsys fs.FS, children []*element, xmlPath, namespace string, 
 			continue
 		}
 		if namespace != "" {
-			if id := child.attrs["id"]; id != "" {
-				child.attrs["id"] = namespace + "." + strings.TrimSpace(id)
+			if id, exists := child.attrs["id"]; exists {
+				id = strings.TrimSpace(id)
+				if id == "" {
+					return nil, at(child.source, "id must not be empty")
+				}
+				child.attrs["id"] = namespace + "." + id
 			}
 		}
 		children, err := expandChildren(fsys, child.children, xmlPath, namespace, stack, names, sourceRoot, doc)

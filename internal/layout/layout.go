@@ -46,22 +46,6 @@ func axis(origin, length, anchor, pivot float64, position, size, before, after i
 	return origin + length*anchor + float64(position) - float64(size)*pivot, float64(size)
 }
 
-// HitButton 从上到下查找最上层按钮，普通节点不拦截命中。
-func HitButton(box *Box, x, y int) *ui.Node {
-	if box == nil || !box.Node.Visible {
-		return nil
-	}
-	for i := len(box.Children) - 1; i >= 0; i-- {
-		if button := HitButton(box.Children[i], x, y); button != nil {
-			return button
-		}
-	}
-	if box.Node.Button != nil && image.Pt(x, y).In(box.Pixels) {
-		return box.Node
-	}
-	return nil
-}
-
 // SubtreeBounds 返回节点及其子树在画布中的总范围。
 func SubtreeBounds(box *Box) image.Rectangle {
 	if box == nil {

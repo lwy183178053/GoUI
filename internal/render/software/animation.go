@@ -66,7 +66,7 @@ func (r *Renderer) motion(id string, duration time.Duration) (*ui.Node, *animati
 	return node, r.motions[id], now, nil
 }
 
-// MoveTo 在指定时长内移动到父组件坐标中的目标位置。
+// MoveTo 在指定时长内改变 position；size=-1 的轴仍按 margin 布局，不参与位移。
 func (r *Renderer) MoveTo(id string, x, y int, duration time.Duration) error {
 	node, motion, now, err := r.motion(id, duration)
 	if err != nil {
@@ -198,8 +198,13 @@ func nodeTransform(box *layout.Box, motion *animation) affine {
 	x := box.Geometry.X + box.Geometry.Width*box.Node.Pivot.X
 	y := box.Geometry.Y + box.Geometry.Height*box.Node.Pivot.Y
 	transform := affine{a, b, c, d, x - a*x - c*y, y - b*x - d*y}
-	transform[4] += motion.position[0] - float64(box.Node.Position.X)
-	transform[5] += motion.position[1] - float64(box.Node.Position.Y)
+	// 填充轴始终忽略 position，避免动画中途移走、结束后又被布局拉回。
+	if box.Node.Size.X != -1 {
+		transform[4] += motion.position[0] - float64(box.Node.Position.X)
+	}
+	if box.Node.Size.Y != -1 {
+		transform[5] += motion.position[1] - float64(box.Node.Position.Y)
+	}
 	return transform
 }
 

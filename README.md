@@ -76,7 +76,7 @@ func main() {
 }
 ```
 
-`Open` 的参数是直接包含 `config.xml` 和 `main.xml` 的 UI 目录。`Page` 提供 `GetBlock`、`GetText`、`GetImage` 和 `GetButton`，Getter 返回组件和错误，ID 不存在或标签类型不符会立即报错。组件共用 `SetColor`、`SetVisible` 和 `MoveTo`、`RotateTo`、`ScaleTo` 动画方法；Image 还提供 `SetSource` 和分段 GIF 的 `Finish`，Text 还提供 `SetText`、`SetTextColor`，Button 还提供 `SetDisabled`、`OnMouseEnter`、`OnMouseLeave`、`OnMouseDown`、`OnMouseUp` 和 `OnClick`。Button 的 XML 属性 `hover-color` 可设置鼠标进入时的填充色，移出后自动恢复 `color`；每种鼠标事件在一个按钮上只能绑定一次，XML 不再声明 `on-click`。
+`Open` 的参数是直接包含 `config.xml` 和 `main.xml` 的 UI 目录。`Page` 提供 `GetBlock`、`GetText`、`GetImage` 和 `GetButton`，Getter 返回组件和错误，ID 不存在或标签类型不符会立即报错。组件共用 `SetColor`、`SetVisible` 和 `MoveTo`、`RotateTo`、`ScaleTo` 动画方法；Image 还提供 `SetSource` 和分段 GIF 的 `Finish`，Text 还提供 `SetText`、`SetTextColor`，Button 还提供 `SetDisabled`、`OnMouseEnter`、`OnMouseLeave`、`OnMouseDown`、`OnMouseUp` 和 `OnClick`。Button 的 XML 属性 `hover-color` 可设置鼠标进入时的填充色，移出后自动恢复 `color`；每种鼠标事件在一个按钮上只能绑定一次，XML 不再声明 `on-click`。按钮被隐藏、父节点被隐藏或按钮被禁用时，会取消未完成的按压和悬停；恢复后需要重新按下才能点击。
 
 窗口可以通过 `<window decorated="false">` 隐藏系统标题栏和边框，再将 Button 事件绑定到 `app.MinimizeWindow()`、`app.ToggleMaximizeWindow()` 和 `app.CloseWindow()`。最大化/还原需要 `resizable="true"`。
 
@@ -86,7 +86,7 @@ check(closeButton.OnClick(func(*goui.Page) error {
 }))
 ```
 
-动画方法的时长使用 `time.Duration`，例如 `500*time.Millisecond`。移动目标是父节点坐标中的 `position`，旋转和缩放围绕组件的 `pivot` 执行；Text、Image、Button 因嵌入 Block 也可使用这些方法。动画使用线性插值，时长为 0 时立即生效。
+动画方法的时长使用 `time.Duration`，例如 `500*time.Millisecond`。移动目标是父节点坐标中的 `position`，旋转和缩放围绕组件的 `pivot` 执行；Text、Image、Button 因嵌入 Block 也可使用这些方法。动画使用线性插值，时长为 0 时立即生效。`size=-1` 的轴始终按 `margin` 填充，`MoveTo` 只移动固定尺寸的轴。
 
 ## 从网络或设备回调更新页面
 
@@ -177,17 +177,17 @@ return face.Finish(func(*goui.Page) error {
 - `display.go`：公开桌面显示器信息和 `Displays()` 查询函数。
 - `go.mod`、`go.sum`：框架模块地址和依赖版本。
 - `internal/ui/`：XML 解析、config 校验、字体与图片资源读取、组件展开和节点模型。
-- `internal/layout/`：锚点布局、像素取整、按钮命中和重绘范围计算。
+- `internal/layout/`：锚点布局、像素取整和子树重绘范围计算；按钮命中统一由渲染层处理。
 - `internal/render/software/snapshot.go`、`snapshot_test.go`：截图内存隔离、绘制前/关闭后的错误测试。
-- `internal/render/software/render.go`：组装字体、节点绘制顺序、RGBA 帧缓存和组件状态更新。
+- `internal/render/software/render.go`、`render_test.go`：组装字体、节点绘制顺序、RGBA 帧缓存和组件状态更新；验证绘制、布局变化和缓存行为。
 - `internal/ui/image.go`：XML 与运行时换源共用的图片读取、解码和分段校验。
 - `internal/ui/animated_image.go`：读取 GIF 的帧、延迟、循环次数和帧处置规则，按需合成当前帧。
 - `internal/ui/image_segments.go`、`image_segments_test.go`：校验文件名中的秒/帧分段，统一换算为原 GIF 时间轴，检查加载错误。
 - `internal/render/software/image_playback.go`：单张 GIF 的时间轴、保持、循环和回正状态；不依赖窗口。
 - `internal/render/software/image_animation.go`：在窗口帧循环中推进可见 GIF、处理完成回调、重置隐藏动画并使图片缓存失效。
 - `internal/render/software/image_animation_test.go`、`image_segments_test.go`：普通 GIF 与分段播放、重绘、显隐和回正切换，以及思考循环和字幕透明的回归测试。
-- `internal/render/software/animation.go`：移动、旋转、缩放的线性插值，以及绘制和命中共用的仿射变换。
-- `internal/render/software/input.go`：鼠标事件注册、按钮事件派发和逆绘制顺序命中。
+- `internal/render/software/animation.go`、`animation_test.go`：移动、旋转、缩放的线性插值，共用仿射变换，以及填充轴与变换命中的回归测试。
+- `internal/render/software/input.go`、`input_test.go`：统一处理鼠标事件、按压与悬停状态、逆绘制顺序命中；测试事件回调中显隐、禁用和小数位移边缘。
 - `internal/render/software/shapes.go`、`text.go`、`images.go`：圆角矩形、文字排版、图片换源和缩放绘制。
 - `internal/render/software/image_source_test.go`：按需加载、换源失败保留旧图、子节点和完成回调换源的测试。
 - `internal/backend/backend.go`：帧来源、呈现后端、排队更新和指针输入接口。

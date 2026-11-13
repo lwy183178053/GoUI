@@ -32,21 +32,6 @@ func (r *Renderer) FinishImage(id string, onDone func() error) error {
 	})
 }
 
-func nodeVisible(root, target *ui.Node) bool {
-	if !root.Visible {
-		return false
-	}
-	if root == target {
-		return true
-	}
-	for _, child := range root.Children {
-		if nodeVisible(child, target) {
-			return true
-		}
-	}
-	return false
-}
-
 func (r *Renderer) advanceImageAnimations(box *layout.Box, now time.Time) error {
 	var completed []func() error
 	if err := r.advanceImageTree(box, now, &completed); err != nil {

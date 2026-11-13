@@ -71,21 +71,3 @@ func TestNestedPositionAndSharedEdges(t *testing.T) {
 		t.Fatalf("shared edges separated or fractional parent lost: %#v", box)
 	}
 }
-
-func TestButtonHitOrderAndVisibility(t *testing.T) {
-	lower := &ui.Node{Kind: ui.Button, BlockStyle: ui.BlockStyle{Visible: true, Size: image.Pt(20, 20)}, Button: &ui.ButtonStyle{}}
-	overlay := &ui.Node{Kind: ui.Block, BlockStyle: ui.BlockStyle{Visible: true, Size: image.Pt(20, 20)}}
-	upper := &ui.Node{Kind: ui.Button, BlockStyle: ui.BlockStyle{Visible: true, Size: image.Pt(10, 20)}, Button: &ui.ButtonStyle{Disabled: true}}
-	root := &ui.Node{Kind: ui.UI, BlockStyle: ui.BlockStyle{Visible: true}, Children: []*ui.Node{lower, overlay, upper}}
-	box := Compute(root, 30, 20)
-	if got := HitButton(box, 5, 5); got != upper {
-		t.Fatalf("top disabled button should block the lower button, got %p", got)
-	}
-	if got := HitButton(box, 15, 5); got != lower {
-		t.Fatalf("ordinary blocks should not intercept button hits, got %p", got)
-	}
-	upper.Visible = false
-	if got := HitButton(box, 5, 5); got != lower {
-		t.Fatalf("hidden buttons should not participate in hit testing, got %p", got)
-	}
-}

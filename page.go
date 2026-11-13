@@ -113,7 +113,7 @@ func (b *Block) SetVisible(visible bool) error {
 	return target.SetVisible(b.id, visible)
 }
 
-// MoveTo 在指定时长内移动到父组件坐标中的目标位置；时长为 0 时立即移动。
+// MoveTo 在指定时长内改变 position；时长为 0 时立即生效，size=-1 的轴不参与位移。
 func (b *Block) MoveTo(x, y int, duration time.Duration) error {
 	target, err := b.target()
 	if err != nil {
@@ -167,7 +167,7 @@ type Button struct{ Block }
 // ButtonEventHandler 是按钮鼠标事件的回调。
 type ButtonEventHandler func(*Page) error
 
-// SetDisabled 设置按钮是否响应点击。
+// SetDisabled 设置按钮是否响应鼠标事件；禁用会取消尚未完成的按压。
 func (b *Button) SetDisabled(disabled bool) error {
 	target, err := b.target()
 	if err != nil {

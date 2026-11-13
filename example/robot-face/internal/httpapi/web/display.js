@@ -9,17 +9,25 @@
   const message = document.querySelector("#display-message");
   const labels = {idle: "待命", listening: "正在倾听", thinking: "正在思考", speaking: "正在回答"};
   let busy = false;
-  let dirty = false;
+  let textDirty = false;
+  let statusDirty = false;
   let revision = 0;
 
   function render(data) {
     document.querySelector("#device-text").textContent = data.current.text || "—";
     document.querySelector("#device-status").textContent = labels[data.current.status];
     // 没有未提交的编辑时同步设备值；保留正在输入的草稿。
-    if (!dirty) {
-      if (document.activeElement !== text) text.value = data.current.text;
-      if (document.activeElement !== status) status.value = data.current.status;
-    }
+    if (!textDirty && document.activeElement !== text) text.value = data.current.text;
+    if (!statusDirty && document.activeElement !== status) status.value = data.current.status;
+  }
+
+  // 提交全文、清空或流式发送成功后，才用设备结果替换编辑内容。
+  function syncEditor(data) {
+    textDirty = false;
+    statusDirty = false;
+    text.value = data.current.text;
+    status.value = data.current.status;
+    render(data);
   }
 
   async function call(update) {
@@ -42,7 +50,6 @@
     form.querySelectorAll("button, input, select, textarea").forEach(control => { control.disabled = true; });
     try {
       await action();
-      dirty = false;
       message.textContent = "已更新设备底部文字。";
       message.dataset.error = "false";
     } catch (error) {
@@ -54,39 +61,36 @@
     }
   }
 
-  text.addEventListener("input", () => { dirty = true; });
-  status.addEventListener("change", () => { dirty = true; });
+  text.addEventListener("input", () => { textDirty = true; });
+  status.addEventListener("change", () => { statusDirty = true; });
 
   form.addEventListener("submit", event => {
     event.preventDefault();
-    perform(async () => render(await call({text: text.value, status: status.value})));
+    perform(async () => syncEditor(await call({text: text.value, status: status.value})));
   });
   document.querySelector("#display-append").addEventListener("click", () => {
     perform(async () => {
       const data = await call({append: delta.value});
       render(data);
-      text.value = data.current.text;
       delta.value = "";
     });
   });
   document.querySelector("#display-clear").addEventListener("click", () => {
-    perform(async () => {
-      render(await call({text: "", status: "idle"}));
-      text.value = "";
-      status.value = "idle";
-    });
+    perform(async () => syncEditor(await call({text: "", status: "idle"})));
   });
   document.querySelector("#display-stream").addEventListener("click", () => {
     const characters = Array.from(text.value);
     perform(async () => {
+      // 发送失败时仍保留完整原文，轮询不能用半截结果覆盖草稿。
+      textDirty = true;
+      statusDirty = true;
       render(await call({text: "", status: "speaking"}));
       // 与模型客户端相同：按生成顺序逐段发送，等待上一段成功后再提交下一段。
       for (let i = 0; i < characters.length; i += 8) {
         render(await call({append: characters.slice(i, i + 8).join("")}));
         await new Promise(resolve => setTimeout(resolve, 100));
       }
-      render(await call({status: "idle"}));
-      status.value = "idle";
+      syncEditor(await call({status: "idle"}));
     });
   });
 
