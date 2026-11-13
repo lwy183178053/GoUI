@@ -71,12 +71,12 @@ func run(uiDirectory, address string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	idleCtx, stopIdle := context.WithCancel(ctx)
-	defer stopIdle()
-	idleErrors := make(chan error, 1)
+	effectsCtx, stopEffects := context.WithCancel(ctx)
+	defer stopEffects()
+	effectsErrors := make(chan error, 1)
 	go func() {
-		err := controller.RunIdle(idleCtx)
-		idleErrors <- err
+		err := controller.RunEffects(effectsCtx)
+		effectsErrors <- err
 		if err != nil {
 			requestClose(app)
 		}
@@ -86,16 +86,16 @@ func run(uiDirectory, address string) error {
 		requestClose(app)
 	}()
 	log.Printf("Web 调试面板：http://localhost:%d；远程使用本机 IP 和同一端口", listener.Addr().(*net.TCPAddr).Port)
-	log.Print("POST /api/display 用 text 替换文字或 append 追加片段；提示和回答共用同一区域")
+	log.Print("POST /api/display 传入完整 text，设备自动逐字显示；空字符串清空")
 	log.Print("GET /api/expressions 获取列表；POST /api/emotion 示例：{\"name\":\"music\",\"loop\":true,\"interrupt\":true}")
 
 	// 窗口循环保留在主 goroutine；HTTP 通过 Dispatch 提交组件更新。
 	windowErr := app.Run()
-	stopIdle()
+	stopEffects()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	shutdownErr := server.Shutdown(shutdownCtx)
-	return errors.Join(windowErr, shutdownErr, <-serverErrors, <-idleErrors)
+	return errors.Join(windowErr, shutdownErr, <-serverErrors, <-effectsErrors)
 }
 
 func requestClose(app *goui.Application) {

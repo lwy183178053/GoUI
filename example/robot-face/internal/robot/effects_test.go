@@ -22,11 +22,11 @@ func TestRandomBlinkIntervalsStayWithinRangeAndVary(t *testing.T) {
 	}
 }
 
-func startIdle(t *testing.T, robot *Controller) context.CancelFunc {
+func startEffects(t *testing.T, robot *Controller) context.CancelFunc {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- robot.RunIdle(ctx) }()
+	go func() { done <- robot.RunEffects(ctx) }()
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -35,16 +35,16 @@ func startIdle(t *testing.T, robot *Controller) context.CancelFunc {
 				t.Fatal(err)
 			}
 		case <-time.After(time.Second):
-			t.Fatal("取消后眨眼等待未退出")
+			t.Fatal("取消后显示效果等待未退出")
 		}
 	})
 	return cancel
 }
 
-func TestIdleReplaysNormalWithoutLoadingTheSourceAgain(t *testing.T) {
+func TestEffectsReplaysNormalWithoutLoadingTheSourceAgain(t *testing.T) {
 	robot, _ := testRobot(t)
 	old := robot.generation
-	// 将下一次眨眼设为已到期；RunIdle 只调用 Play，已加载的 GIF 无需重新读盘。
+	// 将下一次眨眼设为已到期；RunEffects 只调用 Play，已加载的 GIF 无需重新读盘。
 	robot.blinkAt = time.Now().Add(-time.Second)
 	dispatched := make(chan struct{}, 1)
 	original := robot.dispatch
@@ -53,7 +53,7 @@ func TestIdleReplaysNormalWithoutLoadingTheSourceAgain(t *testing.T) {
 		dispatched <- struct{}{}
 		return err
 	}
-	startIdle(t, robot)
+	startEffects(t, robot)
 	select {
 	case <-dispatched:
 	case <-time.After(time.Second):
@@ -76,7 +76,7 @@ func TestQueuedBlinkDoesNotInterruptANewAction(t *testing.T) {
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	cancel := startIdle(t, robot)
+	cancel := startEffects(t, robot)
 	var blink func(*goui.Page) error
 	select {
 	case blink = <-queued:
@@ -99,9 +99,37 @@ func TestQueuedBlinkDoesNotInterruptANewAction(t *testing.T) {
 	cancel()
 }
 
-func TestIdleCancellationDoesNotWaitForBlinkTimer(t *testing.T) {
+func TestEffectsCancellationDoesNotWaitForBlinkTimer(t *testing.T) {
 	robot, _ := testRobot(t)
 	robot.blinkAt = time.Now().Add(time.Hour)
-	cancel := startIdle(t, robot)
+	cancel := startEffects(t, robot)
 	cancel()
+}
+
+func TestEffectsFinishesTypingWithoutAnotherRequest(t *testing.T) {
+	robot, _ := testRobot(t)
+	if _, err := robot.SetDisplay(context.Background(), "自动打完"); err != nil {
+		t.Fatal(err)
+	}
+	finished := make(chan struct{}, 1)
+	original := robot.dispatch
+	robot.dispatch = func(ctx context.Context, update func(*goui.Page) error) error {
+		err := original(ctx, update)
+		if !robot.Display().Typing {
+			select {
+			case finished <- struct{}{}:
+			default:
+			}
+		}
+		return err
+	}
+	startEffects(t, robot)
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("提交一次后文字没有自动显示完成")
+	}
+	if state := robot.Display(); state.Text != "自动打完" || state.VisibleText != state.Text || state.Typing {
+		t.Fatalf("文字播放结果不正确：%+v", state)
+	}
 }

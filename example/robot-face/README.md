@@ -16,7 +16,7 @@ go run .
 go run . -ui ./ui -listen :8080
 ```
 
-`-listen :8080` 监听所有网卡；只在本机调试时可使用 `127.0.0.1:8080`。关闭窗口、Alt+F4 或 Ctrl+C 后，HTTP 服务与眨眼等待任务一并退出。
+`-listen :8080` 监听所有网卡；只在本机调试时可使用 `127.0.0.1:8080`。关闭窗口、Alt+F4 或 Ctrl+C 后，HTTP 服务与显示效果等待任务一并退出。
 
 ## 目录与代码边界
 
@@ -29,8 +29,8 @@ robot-face/
       controller.go           # 绑定 Image/Text，保存实际状态和待切换请求
       emotion.go              # 表情名称、中文显示名和 GIF 文件登记表
       playback.go             # 立即/延后切换、单次/循环、动作结束回正常
-      idle.go                 # 正常表情随机眨眼，可取消的定时等待
-      display.go              # 唯一文字区域的替换、追加与输入校验
+      effects.go              # 眨眼与打字机共用的可取消等待循环
+      display.go              # 完整句子输入、逐字显示、清空与校验
       *_test.go               # 表情、切换时序、眨眼、文字和并发测试
     httpapi/
       server.go               # Gin 路由与内嵌网页
@@ -43,7 +43,7 @@ robot-face/
         index.html            # 调试页面
         styles.css            # 桌面和手机布局
         app.js                # 名称按钮、循环/打断选项和状态轮询
-        display.js            # 文字编辑、追加与模拟流式输出
+        display.js            # 完整句子发送、清空与显示进度
         preview.js            # 串行获取真实画面，更新固定 Canvas
     testui/
       fixture.go              # 测试专用的小型 GIF 与字体
@@ -56,7 +56,7 @@ robot-face/
 
 仓库根目录的 `image.go`、`page.go` 和 `internal/` 是 **GoUI 框架代码**。本目录的 `internal/robot` 和 `internal/httpapi` 是 **机器人项目业务代码**。框架不依赖 Gin，也不定义表情名称、随机眨眼间隔或大模型协议。
 
-框架负责 `Image.SetSource`、`Image.Play`、`Image.Finish`、GIF 解码、文字绘制、布局、窗口、`Application.Dispatch` 与 `Application.Snapshot`。机器人项目负责选择 GIF、播放策略、动作结束回正常和文字内容。后续语音或设备功能可继续放在本项目的 `internal/` 下。
+框架负责 `Image.SetSource`、`Image.Play`、`Image.Finish`、GIF 解码、文字绘制、布局、窗口、`Application.Dispatch` 与 `Application.Snapshot`。机器人项目负责选择 GIF、播放策略、动作结束回正常、随机眨眼和打字机文字效果。后续语音或设备功能可继续放在本项目的 `internal/` 下。
 
 ## 表情接口
 
@@ -122,9 +122,9 @@ curl -X POST http://127.0.0.1:8080/api/emotion -H 'Content-Type: application/jso
 
 所有动作按原 GIF 的帧延迟完整播放。文件名中的 `_[0.5s]`、`_[0.5s,1.5s]` 等仅保留为素材名称，本示例不读取它们作为暂停点，音乐和运动都能完整循环。
 
-动作播放一次后回到 `normal`。正常 GIF 自带一次眨眼：播完后保持睁眼，随机等待 **2～5 秒**再重播。正常表情忽略 loop，不会连续快速眨眼。间隔在 `internal/robot/idle.go` 的两个常量中调整。
+动作播放一次后回到 `normal`。正常 GIF 自带一次眨眼：播完后保持睁眼，随机等待 **2～5 秒**再重播。正常表情忽略 loop，不会连续快速眨眼。间隔在 `internal/robot/effects.go` 的两个常量中调整。
 
-随机等待只有一个可取消的业务循环；每次 GIF 完成后才安排下一次眨眼。新动作清除原眨眼计划，已经排队的旧通知也会在主循环重新检查，避免打断新动作。GIF 帧仍由框架原有帧循环推进。
+随机眨眼与逐字显示共用一个可取消的业务等待循环；每次 GIF 完成后才安排下一次眨眼。新动作清除原眨眼计划，已经排队的旧通知也会在主循环重新检查，避免打断新动作。GIF 帧仍由框架原有帧循环推进。
 
 ## 一个 Image 按需换源
 
@@ -142,20 +142,40 @@ curl -X POST http://127.0.0.1:8080/api/emotion -H 'Content-Type: application/jso
 
 项目只保存文件名登记表。启动只加载初始资源，换表情才调用 `SetSource` 读取目标；同一动作和正常眨眼调用 `Play` 重播，不重新读盘。旧素材的画布和完成回调随换源释放，不缓存全部候选 GIF。换源不会重建或清空文字节点。
 
-文字以 Image 的完整布局矩形定位，contain 留白不会缩放文字。背景完全透明，内容为空时隐藏；所有提示和回答共用 `caption`。窗口主循环中的完成回调直接操作组件，HTTP 与眨眼等待任务通过 `app.Dispatch` 提交更新。
+文字以 Image 的完整布局矩形定位，contain 留白不会缩放文字。背景完全透明，内容为空时隐藏；所有提示和回答共用 `caption`。窗口主循环中的完成回调直接操作组件，HTTP 与显示效果等待任务通过 `app.Dispatch` 提交更新。
 
 ## 文字接口
 
-`GET /api/display` 读取当前文字。`POST /api/display` 只接受以下操作之一：
+一次发送完整句子，设备自动以打字机效果显示：
 
-| JSON | 含义 |
-| --- | --- |
-| `{"text":"正在倾听…"}` | 替换全部文字 |
-| `{"text":"你好"}` | 用第一段回答替换提示 |
-| `{"append":"，很高兴见到你。"}` | 追加模型生成片段 |
-| `{"text":""}` | 清空并隐藏文字 |
+```http
+POST /api/display
+Content-Type: application/json
 
-响应为 `{"current":{"text":"当前文字"}}`。text 与 append 不能同时提供；累计最多 8192 个字符，超出时返回 400 并保留原文字。提示和回答会互相替换，所有文字只在同一区域显示。长回答在底部显示最后几行，切换表情不清空内容。
+{"text":"你好，很高兴见到你。"}
+```
+
+首字立即显示，之后每 **40 毫秒**显示一个字符。中文和 emoji 按 Unicode 字符处理，不会拆开 UTF-8 字节。新请求替换旧句子，从首字重新开始；无需等待上一句播放完。发送 `{"text":""}` 立即清空并隐藏文字。
+
+接口收到后立即返回，不等待整句话显示完成；`GET /api/display` 可读取进度：
+
+```json
+{
+  "current": {
+    "text": "你好，很高兴见到你。",
+    "visible_text": "你好",
+    "typing": true
+  }
+}
+```
+
+- `text`：最近一次收到的完整句子。
+- `visible_text`：当前已经显示的部分。
+- `typing`：是否还有字符等待显示，全部显示或清空后为 false。
+
+`text` 是唯一输入字段且必须提供，单次最多 8192 个字符。缺少字段、类型错误、超出限制或未知字段返回 400，原文字与播放进度保留。显示速度在 `internal/robot/display.go` 的 `textCharacterInterval` 常量中调整。
+
+提示和回答共用一个透明背景的文字区域；长回答在底部显示最后几行。切换表情不会清空文字或重置打字进度。HTTP 只提交一次完整句子，后续文字由机器人项目的 `RunEffects` 调度，不为每句话创建 goroutine，框架仍只负责普通 Text 绘制。
 
 ## Web 调试面板
 
@@ -164,7 +184,7 @@ curl -X POST http://127.0.0.1:8080/api/emotion -H 'Content-Type: application/jso
 - 实际表情以浅蓝标记，待切换表情以虚线标记，状态文字说明当前动作与目标。
 - 预览通过 `GET /api/preview` 获取窗口最近绘制的真实帧，包含动作、随机眨眼和文字；浏览器不单独播放 GIF。
 - 预览最多约 20 次/秒串行取帧，宽度最多 640px、JPEG 品质 85；存在少量采样和网络延迟。
-- 文字控件支持替换、清空、追加和模拟流式回答，轮询不会覆盖尚未提交的文字草稿。
+- 文字控件只保留完整句子输入、“发送文字”和“清空”。面板显示打字进度，预览采样设备实际文字；轮询不会用半截结果覆盖完整句子或尚未提交的草稿。
 
 ## Linux 部署
 

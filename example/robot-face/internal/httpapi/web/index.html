@@ -34,21 +34,17 @@
       <div class="heading"><h2 id="display-title">显示文字</h2></div>
       <form id="display-form" class="display-editor">
         <label class="sr-only" for="display-text">显示文字</label>
-        <textarea id="display-text" rows="2" maxlength="8192" placeholder="输入提示或回答文字，例如：正在倾听…"></textarea>
+        <textarea id="display-text" rows="2" maxlength="8192" placeholder="输入完整句子，设备会自动逐字显示"></textarea>
         <div class="display-actions">
-          <button type="submit" class="primary">更新显示</button>
+          <button type="submit" class="primary">发送文字</button>
           <button id="display-clear" type="button">清空</button>
         </div>
-        <details>
-          <summary>增量输出测试</summary>
-          <div class="display-append"><input id="display-delta" aria-label="追加文字片段" placeholder="追加文字片段"><button id="display-append" type="button">追加</button><button id="display-stream" type="button">模拟流式回答</button></div>
-        </details>
       </form>
-      <p id="display-message" class="message" role="status">文字与表情独立控制。</p>
+      <p id="display-message" class="message" role="status">一次发送完整句子，设备自动逐字显示；发送新内容会替换旧文字。</p>
     </section>
     <details class="api-section">
       <summary>接口用法</summary>
-      <p>表情列表：GET /api/expressions。播放：POST /api/emotion，按名称调用；loop 默认 false，interrupt 默认 true。不打断时完成本轮再切换。文字：POST /api/display · text 替换、append 追加；text 传空字符串清空。提示和回答共用一个文字区域。</p>
+      <p>表情列表：GET /api/expressions。播放：POST /api/emotion，按名称调用；loop 默认 false，interrupt 默认 true。不打断时完成本轮再切换。文字：POST /api/display，传入 {"text":"完整句子"} 自动逐字显示，空字符串立即清空。提示和回答共用一个文字区域。</p>
       <pre><code id="api-example">{"name":"normal","loop":false,"interrupt":true}</code></pre>
       <p>预览采样实际 UI 画面，包含动作、随机眨眼与字幕；网络传输会有少量延迟。</p>
     </details>

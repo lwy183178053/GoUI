@@ -36,13 +36,11 @@ input, textarea { padding: 8px 10px; background: #fbfbfa; border: 1px solid #eae
 .display-panel { margin-top: 20px; }
 .display-editor { display: grid; gap: 12px; }
 textarea { width: 100%; line-height: 1.8; resize: vertical; }
-.display-actions, .display-append { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.display-append { margin-top: 12px; }
-.display-append input { flex: 1; }
+.display-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .api-section { margin-top: 20px; padding: 14px 0; border-top: 1px solid #eaeaea; }
 .api-section p { color: var(--muted); font-size: 12px; margin-top: 12px; }
 pre { overflow-x: auto; font: 12px/1.7 Consolas, monospace; padding: 12px; background: #eeede8; border-radius: 4px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 760px) { .dashboard { grid-template-columns: 1fr; } .workspace { padding: 20px 14px; } }
-@media (max-width: 400px) { .panel { padding: 14px; } .display-append input { flex-basis: 100%; } }
+@media (max-width: 400px) { .panel { padding: 14px; } }

@@ -18,14 +18,20 @@ func registerDisplay(router *gin.Engine, controller *robot.Controller) {
 		reply(c, controller.Display())
 	})
 	router.POST("/api/display", func(c *gin.Context) {
-		var update robot.DisplayUpdate
-		if err := readJSON(c, &update, 64*1024); err != nil {
+		var body struct {
+			Text *string `json:"text"`
+		}
+		if err := readJSON(c, &body, 64*1024); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if body.Text == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "必须提供 text，传空字符串可清空文字"})
 			return
 		}
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
 		defer cancel()
-		current, err := controller.SetDisplay(ctx, update)
+		current, err := controller.SetDisplay(ctx, *body.Text)
 		if err != nil {
 			replyError(c, err)
 			return

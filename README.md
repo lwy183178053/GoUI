@@ -19,7 +19,7 @@ go run .
 go build -o GoUI.exe .
 ```
 
-机器人 GIF 表情示例在 `example/robot-face/` 中，同样在该目录执行 `go run .`。设备使用单个 Image 和底部一个透明 Text；浏览器打开 `http://localhost:8080/`，通过表情名称按钮选择动作、循环和打断策略。`GET /api/expressions` 获取可用名称，`POST /api/emotion` 按名称控制，`POST /api/display` 替换或追加文字。动作默认完整播放一次后回正常，正常每隔 2～5 秒随机眨眼。具体接口和 Linux 部署见示例 README。
+机器人 GIF 表情示例在 `example/robot-face/` 中，同样在该目录执行 `go run .`。设备使用单个 Image 和底部一个透明 Text；浏览器打开 `http://localhost:8080/`，通过表情名称按钮选择动作、循环和打断策略。`GET /api/expressions` 获取可用名称，`POST /api/emotion` 按名称控制，`POST /api/display` 一次接收完整句子，设备自动逐字显示。动作默认完整播放一次后回正常，正常每隔 2～5 秒随机眨眼。具体接口和 Linux 部署见示例 README。
 
 `GoUI.exe` 运行时需要同目录下的 `ui/` 资源目录。示例通过 `goui.Open("./ui")` 加载它，因此从项目目录启动程序。
 
@@ -215,9 +215,10 @@ return face.Finish(func(*goui.Page) error {
 - `example/robot-face/internal/robot/`：项目自己的表情名称、切换策略与统一文字显示，不属于 GoUI 框架。
 - `example/robot-face/internal/robot/controller.go`、`emotion.go`：绑定 Image/Text、保存实际状态、登记表情名称与资源。
 - `example/robot-face/internal/robot/playback.go`：立即或完成本轮后切换、单次回正常、循环与旧通知失效。
-- `example/robot-face/internal/robot/idle.go`、`idle_test.go`：正常表情的随机眨眼间隔、可取消等待和过期通知检查。
+- `example/robot-face/internal/robot/effects.go`、`effects_test.go`：随机眨眼与逐字显示共用的可取消等待循环、过期通知检查。
+- `example/robot-face/internal/robot/display.go`、`display_test.go`：完整句子输入、打字机进度、新句子替换与清空。
 - `example/robot-face/internal/httpapi/`：项目自己的 Gin 接口、输入校验、Web 面板与测试。
-- `example/robot-face/internal/httpapi/web/`：无需前端工具链的调试网页，包含实际 UI 帧预览、表情名称按钮、循环/打断选项、文字与模拟流式输出控件。
+- `example/robot-face/internal/httpapi/web/`：无需前端工具链的调试网页，包含实际 UI 帧预览、表情名称按钮、循环/打断选项、完整句子发送、清空与打字进度。
 - `example/robot-face/internal/testui/`：仅供示例测试使用的小尺寸资源。
 - `example/robot-face/ui/`：表情与底部文字页面、窗口配置和原始素材。
 

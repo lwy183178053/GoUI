@@ -14,29 +14,27 @@ func TestDisplayHTTPAPI(t *testing.T) {
 	controller := testController(t)
 	router := New(controller, testSnapshot)
 	request := func(method, path, body string) *httptest.ResponseRecorder {
+		t.Helper()
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, httptest.NewRequest(method, path, strings.NewReader(body)))
 		return response
 	}
-	for _, test := range []struct {
-		body string
-		text string
-	}{
-		{`{"text":"正在倾听…"}`, "正在倾听…"},
-		{`{"text":"正在思考…"}`, "正在思考…"},
-		{`{"text":"你好"}`, "你好"},
-		{`{"append":"，这是实时回答。"}`, "你好，这是实时回答。"},
-		{`{"text":""}`, ""},
-	} {
-		response := request(http.MethodPost, "/api/display", test.body)
+	for _, value := range []string{"正在倾听…", "你好，这是完整回答。", "好", ""} {
+		payload, err := json.Marshal(map[string]string{"text": value})
+		if err != nil {
+			t.Fatal(err)
+		}
+		response := request(http.MethodPost, "/api/display", string(payload))
 		var body struct {
 			Current robot.DisplayState `json:"current"`
 		}
 		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 			t.Fatal(err)
 		}
-		if response.Code != http.StatusOK || body.Current.Text != test.text {
-			t.Fatalf("显示接口返回不正确：%d %s", response.Code, response.Body.String())
+		characters := []rune(value)
+		want := robot.DisplayState{Text: value, VisibleText: string(characters[:min(1, len(characters))]), Typing: len(characters) > 1}
+		if response.Code != http.StatusOK || body.Current != want || controller.Display() != want {
+			t.Fatalf("文字应立即接收全文并从首字开始：%d %s", response.Code, response.Body.String())
 		}
 	}
 	response := request(http.MethodGet, "/api/display", "")
@@ -45,7 +43,7 @@ func TestDisplayHTTPAPI(t *testing.T) {
 	}
 	before := controller.Display()
 	for _, body := range []string{
-		"", "null", "{}", "[]", `{"text":3}`, `{"append":true}`,
+		"", "null", "{}", "[]", `{"text":null}`, `{"text":3}`, `{"append":"旧增量接口"}`,
 		`{"text":"a","append":"b"}`, `{"status":"listening"}`, `{"text":"a","status":"idle"}`, `{"extra":1}`,
 		`{"text":"a"} {}`, `{"text":"` + strings.Repeat("字", robot.MaxTextLength+1) + `"}`,
 		`{"text":"x"}` + strings.Repeat(" ", 64*1024),

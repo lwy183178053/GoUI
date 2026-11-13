@@ -59,7 +59,7 @@ func (c *Controller) playExpression(next Expression, loop bool) error {
 	c.generation = generation
 	c.current = EmotionState{Expression: next, Loop: loop}
 	c.blinkAt = time.Time{}
-	c.wakeIdle()
+	c.wakeEffects()
 	return nil
 }
 
@@ -79,7 +79,7 @@ func (c *Controller) completeExpression(generation uint64) error {
 	}
 	if c.current.Expression.Name == "normal" {
 		c.blinkAt = time.Now().Add(randomBlinkInterval())
-		c.wakeIdle()
+		c.wakeEffects()
 		return nil
 	}
 	return c.playExpression(expressions[0], false)

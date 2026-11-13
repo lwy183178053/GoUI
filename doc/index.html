@@ -413,7 +413,7 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
         <h3>自动换行的说明文字</h3>
         <pre><code class="language-xml" data-example="text-wrapping">&lt;text position="16,56" size="320,96"
   wrap="true" valign="top" font-size="16"&gt;显示当前页面状态和界面更新结果。文字会根据当前宽度自动换行。&lt;/text&gt;</code></pre>
-        <p>开启 <code>wrap</code> 后，中文可以逐字折行，英文优先按空格保留单词；单个单词超过整行宽度时再拆分。行高由字体度量决定，节点高度仍由 <code>size</code> 决定。多行超出高度时，按 <code>valign</code> 保留能放下的完整行：top 显示开头，middle 显示中间，bottom 显示末尾，适合持续追加的底部字幕。高度不足一行时仍按 Text 矩形裁切。</p>
+        <p>开启 <code>wrap</code> 后，中文可以逐字折行，英文优先按空格保留单词；单个单词超过整行宽度时再拆分。行高由字体度量决定，节点高度仍由 <code>size</code> 决定。多行超出高度时，按 <code>valign</code> 保留能放下的完整行：top 显示开头，middle 显示中间，bottom 显示末尾，适合逐字显示的底部字幕。高度不足一行时仍按 Text 矩形裁切。</p>
         <p>单行模式同样在自身矩形内显示。文本中的 <code>&amp;lt;</code>、<code>&amp;amp;</code> 等 XML 实体在显示前还原。Text 只能放文字内容。</p>
       </section>
 
@@ -494,7 +494,7 @@ return face.Finish(func(*goui.Page) error {
         <pre><code class="language-json">{"name":"music","loop":true,"interrupt":false}</code></pre>
         <p>此请求等当前 GIF 播完本轮后，再持续循环音乐。interrupt=true 会立即打断；等待期间只保留最新请求，不排队。同一动作再次请求也按所选策略重播。响应中的 expression 是实际表情，loop 表示是否持续循环，pending（可选）是待切换请求；新请求立即打断时清除 pending。</p>
         <p>动作默认完整播放一次后回 normal。正常 GIF 播完一次眨眼后保持睁眼，随机等待 2～5 秒重播；正常表情忽略 loop。示例使用 auto 模式和 Play，不读取文件名中的暂停点。随机等待、表情名称与 Gin 接口均属于机器人项目，框架只提供通用组件和播放能力。</p>
-        <p><code>POST /api/display</code> 的 text 替换所有文字、append 追加模型增量，空 text 清空显示。例如 <code>{"text":"正在倾听…"}</code>；开始回答时先用第一段替换提示，再追加后续片段。HTTP 与眨眼等待任务通过 app.Dispatch 提交。浏览器通过 Application.Snapshot 获取设备已绘制的帧，动作、随机眨眼和字幕与 UI 共用结果，存在少量采样和网络延迟。</p>
+        <p><code>POST /api/display</code> 一次接收完整句子，例如 <code>{"text":"你好，很高兴见到你。"}</code>。首字立即显示，随后每 40 毫秒显示一个 Unicode 字符；新句子替换旧内容并重新开始，空 text 立即清空。text 是唯一输入字段，必须提供且不超过 8192 个字符。接口立即返回完整 text、已显示的 visible_text 和 typing 状态，<code>GET /api/display</code> 可继续查询进度。打字机与随机眨眼共用机器人项目的 RunEffects 等待循环，通过 app.Dispatch 提交更新；切换表情不会重置文字。浏览器通过 Application.Snapshot 获取设备已绘制的帧，动作、随机眨眼和文字与 UI 共用结果，存在少量采样和网络延迟。</p>
       </section>
 
       <section class="doc-section" id="button">

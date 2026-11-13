@@ -1,31 +1,27 @@
 "use strict";
 
-// 所有文字共用一个区域，文字请求与表情请求分别维护等待状态。
+// 一次提交完整文字，设备负责逐字显示；轮询只读取进度并保留本地草稿。
 (() => {
   const form = document.querySelector("#display-form");
   const text = document.querySelector("#display-text");
-  const delta = document.querySelector("#display-delta");
   const message = document.querySelector("#display-message");
   let busy = false;
   let dirty = false;
   let revision = 0;
 
   function render(data) {
-    // 没有未提交的编辑时同步设备值；保留正在输入的草稿。
-    if (!dirty && document.activeElement !== text) text.value = data.current.text;
+    const state = data.current;
+    // 编辑框始终显示完整句子，设备上的半截文字不会覆盖草稿。
+    if (!dirty && document.activeElement !== text) text.value = state.text;
+    message.textContent = state.typing ? "正在逐字显示…" : state.text ? "文字已显示完成。" : "文字已清空。";
+    message.dataset.error = "false";
   }
 
-  // 提交全文、清空或流式发送成功后，才用设备结果替换编辑内容。
-  function syncEditor(data) {
-    dirty = false;
-    text.value = data.current.text;
-  }
-
-  async function call(update) {
+  async function call(value) {
     const response = await fetch("/api/display", {
-      method: update === undefined ? "GET" : "POST",
+      method: value === undefined ? "GET" : "POST",
       headers: {"Content-Type": "application/json"},
-      body: update === undefined ? undefined : JSON.stringify(update),
+      body: value === undefined ? undefined : JSON.stringify({text: value}),
       cache: "no-store",
       signal: AbortSignal.timeout(5000),
     });
@@ -34,54 +30,33 @@
     return data;
   }
 
-  async function perform(action) {
+  async function send(value) {
     if (busy) return;
     busy = true;
     ++revision;
-    form.querySelectorAll("button, input, textarea").forEach(control => { control.disabled = true; });
+    const controls = form.querySelectorAll("button, textarea");
+    controls.forEach(control => { control.disabled = true; });
     try {
-      await action();
-      message.textContent = "已更新设备底部文字。";
-      message.dataset.error = "false";
+      const data = await call(value);
+      dirty = false;
+      text.value = data.current.text;
+      render(data);
     } catch (error) {
-      message.textContent = `更新失败：${error.message}`;
+      dirty = true; // 失败时保留原文，方便直接重试。
+      message.textContent = `发送失败：${error.message}`;
       message.dataset.error = "true";
     } finally {
       busy = false;
-      form.querySelectorAll("button, input, textarea").forEach(control => { control.disabled = false; });
+      controls.forEach(control => { control.disabled = false; });
     }
   }
 
   text.addEventListener("input", () => { dirty = true; });
-
   form.addEventListener("submit", event => {
     event.preventDefault();
-    perform(async () => syncEditor(await call({text: text.value})));
+    send(text.value);
   });
-  document.querySelector("#display-append").addEventListener("click", () => {
-    perform(async () => {
-      const data = await call({append: delta.value});
-      render(data);
-      delta.value = "";
-    });
-  });
-  document.querySelector("#display-clear").addEventListener("click", () => {
-    perform(async () => syncEditor(await call({text: ""})));
-  });
-  document.querySelector("#display-stream").addEventListener("click", () => {
-    const characters = Array.from(text.value);
-    perform(async () => {
-      // 发送失败时仍保留完整原文，轮询不能用半截结果覆盖草稿。
-      dirty = true;
-      let data = await call({text: ""});
-      // 与模型客户端相同：按生成顺序逐段发送，等待上一段成功后再提交下一段。
-      for (let i = 0; i < characters.length; i += 8) {
-        data = await call({append: characters.slice(i, i + 8).join("")});
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      syncEditor(data);
-    });
-  });
+  document.querySelector("#display-clear").addEventListener("click", () => send(""));
 
   async function poll() {
     if (!busy) {
@@ -96,7 +71,7 @@
         }
       }
     }
-    setTimeout(poll, 1000);
+    setTimeout(poll, 500);
   }
   poll();
 })();

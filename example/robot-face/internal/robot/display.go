@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 	"unicode/utf8"
 
 	goui "github.com/lwy183178053/GoUI"
@@ -12,30 +13,24 @@ import (
 // ErrInvalidInput 让 HTTP 层区分业务输入错误与窗口、资源等运行错误。
 var ErrInvalidInput = errors.New("输入无效")
 
-// MaxTextLength 限制累计显示字符数，避免持续追加无界占用内存。
+// MaxTextLength 限制单次提交的字符数。
 const MaxTextLength = 8192
 
-// DisplayState 保存唯一文字区域的内容，和表情向量相互独立。
+// textCharacterInterval 控制打字机速度，中文和英文都按字符显示。
+const textCharacterInterval = 40 * time.Millisecond
+
+// DisplayState 区分收到的完整句子和设备上已经显示的部分。
 type DisplayState struct {
-	Text string `json:"text"`
+	Text        string `json:"text"`
+	VisibleText string `json:"visible_text"`
+	Typing      bool   `json:"typing"`
 }
 
-// DisplayUpdate 只修改提供的字段。Text 替换全文，Append 追加增量，两者不能同时使用。
-// 指针用于区分遗漏字段和空字符串，空 text 可以清空文字。
-type DisplayUpdate struct {
-	Text   *string `json:"text"`
-	Append *string `json:"append"`
-}
-
-// Validate 检查字段组合；追加后的累计长度在主循环中检查。
-func (update DisplayUpdate) Validate() error {
-	if update.Text == nil && update.Append == nil {
-		return fmt.Errorf("%w: 至少提供 text 或 append", ErrInvalidInput)
-	}
-	if update.Text != nil && update.Append != nil {
-		return fmt.Errorf("%w: text 与 append 不能同时提供", ErrInvalidInput)
-	}
-	return nil
+// typewriter 只记录当前句子的播放进度，不为每句话启动后台任务。
+type typewriter struct {
+	characters []rune
+	started    time.Time
+	shown      int
 }
 
 // Display 返回文字状态的快照。
@@ -45,37 +40,59 @@ func (c *Controller) Display() DisplayState {
 	return c.display
 }
 
-// SetDisplay 在主循环中更新普通 Text；HTTP 流式输出逐段提交 Append 即可。
-func (c *Controller) SetDisplay(ctx context.Context, update DisplayUpdate) (DisplayState, error) {
-	if err := update.Validate(); err != nil {
-		return DisplayState{}, err
+// SetDisplay 一次接收完整句子。新句子替换旧内容，空字符串立即清空。
+// 首字立即显示，其余字符由 RunEffects 通过窗口主循环逐步显示。
+func (c *Controller) SetDisplay(ctx context.Context, value string) (DisplayState, error) {
+	if !utf8.ValidString(value) || utf8.RuneCountInString(value) > MaxTextLength {
+		return DisplayState{}, fmt.Errorf("%w: text 必须是有效 UTF-8，不超过 %d 个字符", ErrInvalidInput, MaxTextLength)
 	}
+	characters := []rune(value)
 	var result DisplayState
 	err := c.dispatch(ctx, func(*goui.Page) error {
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		next := c.display
-		if update.Text != nil {
-			next.Text = *update.Text
-		}
-		if update.Append != nil {
-			next.Text += *update.Append
-		}
-		if !utf8.ValidString(next.Text) || utf8.RuneCountInString(next.Text) > MaxTextLength {
-			return fmt.Errorf("%w: text 必须是有效 UTF-8，累计不超过 %d 个字符", ErrInvalidInput, MaxTextLength)
-		}
-		if err := c.caption.SetText(next.Text); err != nil {
+		shown := min(1, len(characters))
+		visible := string(characters[:shown])
+		if err := c.caption.SetText(visible); err != nil {
 			return err
 		}
-		if err := c.caption.SetVisible(next.Text != ""); err != nil {
+		if err := c.caption.SetVisible(visible != ""); err != nil {
 			return err
 		}
-		c.display = next
-		result = next
+		c.typing = typewriter{characters: characters, started: time.Now(), shown: shown}
+		c.display = DisplayState{Text: value, VisibleText: visible, Typing: shown < len(characters)}
+		c.wakeEffects()
+		result = c.display
 		return nil
 	})
-	if err != nil {
-		return DisplayState{}, err
+	return result, err
+}
+
+// nextTextTime 在持有 mu 时读取，完成或清空后不再安排更新。
+func (c *Controller) nextTextTime() time.Time {
+	if !c.display.Typing {
+		return time.Time{}
 	}
-	return result, nil
+	return c.typing.started.Add(time.Duration(c.typing.shown) * textCharacterInterval)
+}
+
+// advanceText 在主循环且持有 mu 时调用，始终读取最新句子。
+// 按已过时间计算进度，窗口短暂忙碌也不会让整句话越来越慢。
+func (c *Controller) advanceText(now time.Time) error {
+	if !c.display.Typing {
+		return nil
+	}
+	elapsed := max(0, now.Sub(c.typing.started))
+	shown := min(len(c.typing.characters), 1+int(elapsed/textCharacterInterval))
+	if shown <= c.typing.shown {
+		return nil
+	}
+	visible := string(c.typing.characters[:shown])
+	if err := c.caption.SetText(visible); err != nil {
+		return err
+	}
+	c.typing.shown = shown
+	c.display.VisibleText = visible
+	c.display.Typing = shown < len(c.typing.characters)
+	return nil
 }
