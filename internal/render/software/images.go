@@ -1,6 +1,7 @@
 package software
 
 import (
+	"fmt"
 	"image"
 	"image/draw"
 	"math"
@@ -9,6 +10,36 @@ import (
 
 	xdraw "golang.org/x/image/draw"
 )
+
+// SetImageSource 先完整加载目标，成功后再一次性替换，避免失败时留下半成品。
+func (r *Renderer) SetImageSource(id, src string) error {
+	node, box, err := r.node(id)
+	if err != nil {
+		return err
+	}
+	if node.Image == nil {
+		return fmt.Errorf("UI id %q is not an image", id)
+	}
+	loaded, err := r.document.LoadImage(src, node.Image.Playback, node.Source)
+	if err != nil {
+		return err
+	}
+	loaded.Fit = node.Image.Fit
+	if old := r.imagePlayers[node]; old != nil {
+		old.reset() // 取消旧 GIF 已收集但尚未执行的完成回调。
+	}
+	delete(r.imagePlayers, node)
+	delete(r.images, node)
+	delete(r.layers, node)
+	node.Image = loaded
+	if loaded.Animation != nil {
+		r.imagePlayers[node] = newImagePlayback(loaded.Animation)
+	}
+	if box != nil {
+		r.invalidate(box.Pixels)
+	}
+	return nil
+}
 
 func (r *Renderer) scaledImage(node *ui.Node, rect image.Rectangle, sourceImage image.Image) *image.RGBA {
 	style := node.Image

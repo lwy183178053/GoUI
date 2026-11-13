@@ -1,49 +1,14 @@
 <ui color="#000000">
-  <!-- 同一时刻只显示一张 GIF；表情选择由 Go 接口控制，文件名定义进入、保持/循环和回正段。 -->
-  <image id="expression-normal" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/smile_[0.5s].gif" visible="true" />
-  <image id="expression-happy" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/laugh_[0.5s, 1.0s].gif" visible="false" />
-  <image id="expression-angry" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/angry_[2.0s].gif" visible="false" />
-  <image id="expression-sad" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/sad_[0.5s,1.5s].gif" visible="false" />
-  <image id="expression-surprised" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/shocked_[0.5s, 1.0s].gif" visible="false" />
-  <image id="expression-question" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/question_[0.5s].gif" visible="false" />
-  <image id="expression-asleep" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/asleep_[21.5s].gif" visible="false" />
-  <image id="expression-badminton" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/badminton_[1.2s].gif" visible="false" />
-  <image id="expression-confident" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/confident_[0.8s].gif" visible="false" />
-  <image id="expression-cry" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/cry_[1.0s, 2.0s].gif" visible="false" />
-  <image id="expression-investigate" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/investigate_[0.5s, 2.5s].gif" visible="false" />
-  <image id="expression-leisure" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/leisure_[0.5s, 2.0s].gif" visible="false" />
-  <image id="expression-mock" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/mock_[0.5s].gif" visible="false" />
-  <image id="expression-music" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/music_[2.5s].gif" visible="false" />
-  <image id="expression-mute" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/mute_[0.5s].gif" visible="false" />
-  <image id="expression-panic" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/panic_[0.5s, 1.5s].gif" visible="false" />
-  <image id="expression-ponder" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/ponder_[0.5s].gif" visible="false" />
-  <image id="expression-shy" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/shy_[2.0s, 4.0s].gif" visible="false" />
-  <image id="expression-sigh" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/sigh_[2.0s, 4.0s].gif" visible="false" />
-  <image id="expression-smile-static" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/smile_static_[0.5s].gif" visible="false" />
-  <image id="expression-snigger" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/snigger_[1.0s].gif" visible="false" />
-  <image id="expression-yawn" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/yawn_[2.0s].gif" visible="false" />
-  <image id="expression-yummy" size="-1,-1" fit="contain" playback="segmented"
-    src="gif/yummy_[2.0 s].gif" visible="false" />
+  <!-- 只加载当前表情。Go 调用 SetSource 换源，底部文字仍是同一组子节点。 -->
+  <image id="face" size="-1,-1" fit="contain" playback="segmented"
+    src="gif/smile_[0.5s].gif">
+    <block id="caption" anchor="0,1" pivot="0,1" size="-1,156"
+      color="#000000DC" visible="false">
+      <text id="status" size="-1,28" margin="40,0,40,0" position="0,10"
+        font-size="20" text-color="#88C9F2" align="center" />
+      <!-- bottom 让较长回答显示末尾几行，追加文字时能看到最新内容。 -->
+      <text id="answer" size="-1,96" margin="40,0,40,0" position="0,42"
+        font-size="28" text-color="#F2F6FA" align="center" valign="bottom" wrap="true" />
+    </block>
+  </image>
 </ui>

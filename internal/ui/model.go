@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"io/fs"
 
 	"golang.org/x/image/font/opentype"
 )
@@ -79,6 +80,7 @@ type TextStyle struct {
 }
 
 type ImageStyle struct {
+	Playback  string
 	Source    string
 	Image     image.Image
 	Animation *GIFAnimation
@@ -121,6 +123,7 @@ type Document struct {
 	Resources   []string
 	Root        *Node
 	Fonts       map[string]*opentype.Font
+	files       fs.FS
 	nodes       map[string]*Node
 	resourceSet map[string]struct{}
 }

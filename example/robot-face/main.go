@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"example.com/goui-robot-face/internal/httpapi"
+	"example.com/goui-robot-face/internal/robot"
 	"github.com/gin-gonic/gin"
 	goui "github.com/lwy183178053/GoUI"
 )
@@ -36,7 +38,7 @@ func run(uiDirectory, address string) error {
 	if err != nil {
 		return err
 	}
-	robot, err := newRobot(app.Page(), app.Dispatch)
+	controller, err := robot.New(app.Page(), app.Dispatch)
 	if err != nil {
 		return err
 	}
@@ -49,7 +51,7 @@ func run(uiDirectory, address string) error {
 
 	gin.SetMode(gin.ReleaseMode)
 	server := &http.Server{
-		Handler:           newRouter(robot, directory),
+		Handler:           httpapi.New(controller, directory),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      5 * time.Second,
@@ -74,6 +76,7 @@ func run(uiDirectory, address string) error {
 		requestClose(app)
 	}()
 	log.Printf("Web 调试面板：http://localhost:%d；远程使用本机 IP 和同一端口", listener.Addr().(*net.TCPAddr).Port)
+	log.Print("POST /api/display 可更新回答文字和倾听、思考、说话状态")
 	log.Print("POST /api/emotion  请求示例：{\"valence\":8,\"arousal\":9}")
 
 	// 窗口循环保留在主 goroutine；HTTP 通过 Dispatch 提交组件更新。

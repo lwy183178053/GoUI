@@ -109,3 +109,19 @@ footer span:first-child { font: 9px "SF Mono", Consolas, monospace; letter-spaci
   footer span:last-child { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+.display-panel { margin-top: 24px; }
+.display-editor { display: grid; gap: 16px; }
+.display-editor label { display: grid; gap: 8px; font-size: 12px; }
+.display-editor textarea, .display-editor select, .display-editor input {
+  width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 5px;
+  padding: 10px 12px; background: #fbfbfa; color: var(--ink); font: inherit;
+}
+.display-editor textarea { resize: vertical; line-height: 1.7; }
+.display-actions, .display-append { display: flex; gap: 10px; }
+.display-actions button, .display-append button { padding: 10px 14px; border-radius: 5px; border: 1px solid var(--line); background: #f4f4f0; font-size: 12px; white-space: nowrap; }
+.display-actions .primary { width: auto; background: #222522; color: #fff; }
+.display-append input { flex: 1; }
+.display-output { margin-top: 20px; padding: 16px; background: #f4f4f0; border-radius: 6px; }
+.display-output p { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 160px; overflow-y: auto; font-size: 14px; line-height: 1.8; }
+@media (max-width: 520px) { .display-actions { flex-wrap: wrap; } }

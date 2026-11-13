@@ -22,6 +22,19 @@ func paintText(dst *image.RGBA, rect image.Rectangle, style *ui.TextStyle, face 
 	if lineHeight <= 0 {
 		lineHeight = max(fixed.I(1), metrics.Ascent+metrics.Descent)
 	}
+	// 多行溢出时按对齐方向保留完整行，避免底部字幕露出上方的半行文字。
+	// 高度不足一行时仍保留一行，由节点矩形裁切。
+	count := max(1, int(fixed.I(rect.Dy())/lineHeight))
+	if len(lines) > count {
+		start := 0
+		switch style.VAlign {
+		case "middle":
+			start = (len(lines) - count) / 2
+		case "bottom":
+			start = len(lines) - count
+		}
+		lines = lines[start : start+count]
+	}
 	top := fixed.I(rect.Min.Y)
 	freeHeight := fixed.I(rect.Dy()) - lineHeight*fixed.Int26_6(len(lines))
 	switch style.VAlign {

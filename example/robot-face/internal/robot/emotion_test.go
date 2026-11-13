@@ -1,12 +1,12 @@
-package main
+package robot
 
 import "testing"
 
 func TestExpressionCoordinatesAreUniqueAndReachable(t *testing.T) {
-	coordinates := make(map[vector]string)
+	coordinates := make(map[Vector]string)
 	names := make(map[string]bool)
 	for _, item := range expressions {
-		point := vector{item.Valence, item.Arousal}
+		point := Vector{item.Valence, item.Arousal}
 		if previous, exists := coordinates[point]; exists {
 			t.Errorf("%s 和 %s 使用了相同坐标 %+v", previous, item.Name, point)
 		}
@@ -23,15 +23,15 @@ func TestExpressionCoordinatesAreUniqueAndReachable(t *testing.T) {
 
 func TestNearestExpressionAndStableTie(t *testing.T) {
 	for _, test := range []struct {
-		input vector
+		input Vector
 		name  string
 	}{
-		{vector{5, 5}, "normal"},
-		{vector{2, 8}, "angry"},
-		{vector{0, 0}, "sad"},
-		{vector{10, 10}, "happy"},
-		{vector{8, 9}, "happy"},  // 开心和运动等距，采用登记顺序。
-		{vector{5, 1}, "asleep"}, // 睡觉、静音和困倦等距，采用登记顺序。
+		{Vector{5, 5}, "normal"},
+		{Vector{2, 8}, "angry"},
+		{Vector{0, 0}, "sad"},
+		{Vector{10, 10}, "happy"},
+		{Vector{8, 9}, "happy"},  // 开心和运动等距，采用登记顺序。
+		{Vector{5, 1}, "asleep"}, // 睡觉、静音和困倦等距，采用登记顺序。
 	} {
 		got, err := nearestExpression(test.input)
 		if err != nil || got.Name != test.name {
@@ -41,7 +41,7 @@ func TestNearestExpressionAndStableTie(t *testing.T) {
 }
 
 func TestVectorRejectsOutOfRangeCoordinates(t *testing.T) {
-	for _, input := range []vector{{-1, 5}, {11, 5}, {5, -1}, {5, 11}} {
+	for _, input := range []Vector{{-1, 5}, {11, 5}, {5, -1}, {5, 11}} {
 		if _, err := nearestExpression(input); err == nil {
 			t.Errorf("非法坐标 %+v 没有报错", input)
 		}

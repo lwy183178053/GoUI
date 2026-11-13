@@ -38,3 +38,24 @@ func TestImageFinishForwardsPageAndCallbackError(t *testing.T) {
 		t.Fatal("未连接的 Image 应报错")
 	}
 }
+
+func TestImageSetSourceForwardsAndRejectsDisconnectedImage(t *testing.T) {
+	controls := &testPageControls{kinds: map[string]ui.Kind{"picture": ui.Image}}
+	page := &Page{renderer: controls}
+	picture, err := page.GetImage("picture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := picture.SetSource("gif/happy.gif"); err != nil {
+		t.Fatal(err)
+	}
+	if controls.imageSource != "gif/happy.gif" {
+		t.Fatal("图片路径未转交给渲染器")
+	}
+	if err := (*Image)(nil).SetSource("a.png"); err == nil {
+		t.Fatal("空 Image 应报错")
+	}
+	if err := (&Image{}).SetSource("a.png"); err == nil {
+		t.Fatal("未连接的 Image 应报错")
+	}
+}

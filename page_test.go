@@ -12,20 +12,21 @@ import (
 )
 
 type testPageControls struct {
-	finish     func() error
-	kinds      map[string]ui.Kind
-	text       string
-	fill       color.NRGBA
-	textColor  color.NRGBA
-	visible    bool
-	disabled   bool
-	events     map[ui.ButtonEvent]func() error
-	move       [2]int
-	moveTime   time.Duration
-	rotation   float64
-	rotateTime time.Duration
-	scale      [2]float64
-	scaleTime  time.Duration
+	imageSource string
+	finish      func() error
+	kinds       map[string]ui.Kind
+	text        string
+	fill        color.NRGBA
+	textColor   color.NRGBA
+	visible     bool
+	disabled    bool
+	events      map[ui.ButtonEvent]func() error
+	move        [2]int
+	moveTime    time.Duration
+	rotation    float64
+	rotateTime  time.Duration
+	scale       [2]float64
+	scaleTime   time.Duration
 }
 
 func (p *testPageControls) Kind(id string) (ui.Kind, error) {
@@ -47,6 +48,10 @@ func (p *testPageControls) SetTextColor(_ string, value color.NRGBA) error {
 func (p *testPageControls) SetVisible(_ string, value bool) error { p.visible = value; return nil }
 func (p *testPageControls) SetDisabled(_ string, value bool) error {
 	p.disabled = value
+	return nil
+}
+func (p *testPageControls) SetImageSource(_ string, src string) error {
+	p.imageSource = src
 	return nil
 }
 func (p *testPageControls) FinishImage(_ string, callback func() error) error {

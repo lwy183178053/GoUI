@@ -1,11 +1,8 @@
 package ui
 
 import (
-	"bytes"
 	"image"
 	"image/color"
-	_ "image/jpeg"
-	_ "image/png"
 	"io/fs"
 	"os"
 	"path"
@@ -42,6 +39,7 @@ func loadFS(fsys fs.FS, sourceRoot string) (*Document, error) {
 		Window: WindowConfig{
 			Backend: "desktop", Width: 960, Height: 640, Decorated: true,
 		},
+		files:       fsys,
 		nodes:       make(map[string]*Node),
 		resourceSet: make(map[string]struct{}),
 	}
@@ -63,7 +61,7 @@ func loadFS(fsys fs.FS, sourceRoot string) (*Document, error) {
 	if err != nil {
 		return nil, err
 	}
-	doc.Root, err = loadNode(main, doc, true, fsys)
+	doc.Root, err = loadNode(main, doc, true)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +79,7 @@ var commonAttributes = []string{
 	"id", "visible", "anchor", "pivot", "position", "size", "margin", "color", "radius",
 }
 
-func loadNode(e *element, doc *Document, root bool, fsys fs.FS) (*Node, error) {
+func loadNode(e *element, doc *Document, root bool) (*Node, error) {
 	node := &Node{Kind: Kind(e.name), Source: e.source, BlockStyle: BlockStyle{Visible: true}}
 	allowed := commonAttributes
 	switch {
@@ -143,41 +141,38 @@ func loadNode(e *element, doc *Document, root bool, fsys fs.FS) (*Node, error) {
 		if err := loadText(e, node.Text, doc); err != nil {
 			return nil, err
 		}
-	} else if node.Kind == Image {
-		if len(e.children) != 0 {
-			return nil, at(e.children[0].source, "<image> cannot contain child elements")
-		}
-		if err := e.noText(); err != nil {
+		return node, nil
+	}
+	if err := e.noText(); err != nil {
+		return nil, err
+	}
+	if node.Kind == Image {
+		if err := loadImage(e, node.Image, doc); err != nil {
 			return nil, err
 		}
-		if err := loadImage(e, node.Image, fsys, doc); err != nil {
+	}
+	// Image 与 Block 一样提供子节点坐标空间，文字可直接叠加在图片上。
+	for _, child := range e.children {
+		loaded, err := loadNode(child, doc, false)
+		if err != nil {
 			return nil, err
 		}
-	} else {
-		if err := e.noText(); err != nil {
-			return nil, err
-		}
-		for _, child := range e.children {
-			loaded, err := loadNode(child, doc, false, fsys)
-			if err != nil {
-				return nil, err
-			}
-			node.Children = append(node.Children, loaded)
-		}
+		node.Children = append(node.Children, loaded)
 	}
 	return node, nil
 }
 
-func loadImage(e *element, style *ImageStyle, fsys fs.FS, doc *Document) error {
+func loadImage(e *element, style *ImageStyle, doc *Document) error {
 	src, err := e.required("src")
 	if err != nil {
 		return err
 	}
+	fit := "stretch"
 	if value, exists := e.attrs["fit"]; exists {
 		if value != "stretch" && value != "contain" && value != "cover" {
 			return at(e.source, "fit must be stretch, contain or cover")
 		}
-		style.Fit = value
+		fit = value
 	}
 	playback := "auto"
 	if value, exists := e.attrs["playback"]; exists {
@@ -186,52 +181,12 @@ func loadImage(e *element, style *ImageStyle, fsys fs.FS, doc *Document) error {
 		}
 		playback = value
 	}
-	asset, err := assetPath(src)
+	loaded, err := doc.LoadImage(src, playback, e.source)
 	if err != nil {
-		return at(e.source, "image src must be relative to the UI directory")
+		return err
 	}
-	data, err := fs.ReadFile(fsys, asset)
-	if err != nil {
-		return at(e.source, "read image %q: %w", src, err)
-	}
-	_, format, decodeErr := image.DecodeConfig(bytes.NewReader(data))
-	if decodeErr != nil {
-		return at(e.source, "decode image %q: %w", src, decodeErr)
-	}
-	if format == "gif" {
-		animation, err := decodeGIF(data)
-		if err != nil {
-			return at(e.source, "decode GIF %q: %w", src, err)
-		}
-		if playback == "segmented" {
-			animation.Segments, err = parseGIFSegments(src, animation)
-			if err != nil {
-				return at(e.source, "GIF %q: %w", src, err)
-			}
-		}
-		if len(animation.Frames) > 1 || animation.Segments != nil {
-			style.Animation = animation
-		} else {
-			style.Image, err = animation.NewPlayer().Frame(0)
-			if err != nil {
-				return at(e.source, "decode GIF %q: %w", src, err)
-			}
-		}
-	} else {
-		if playback == "segmented" {
-			return at(e.source, "playback=segmented requires a GIF image, got %q", src)
-		}
-		decoded, _, err := image.Decode(bytes.NewReader(data))
-		if err != nil {
-			return at(e.source, "decode image %q: %w", src, err)
-		}
-		if decoded.Bounds().Empty() {
-			return at(e.source, "image %q has no pixels", src)
-		}
-		style.Image = decoded
-	}
-	style.Source = src
-	doc.addResource(asset)
+	*style = *loaded
+	style.Fit = fit
 	return nil
 }
 

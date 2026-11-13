@@ -413,7 +413,7 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
         <h3>自动换行的说明文字</h3>
         <pre><code class="language-xml" data-example="text-wrapping">&lt;text position="16,56" size="320,96"
   wrap="true" valign="top" font-size="16"&gt;显示当前页面状态和界面更新结果。文字会根据当前宽度自动换行。&lt;/text&gt;</code></pre>
-        <p>开启 <code>wrap</code> 后，中文可以逐字折行，英文优先按空格保留单词；单个单词超过整行宽度时再拆分。行高由字体度量决定，超出当前 Text 矩形的文字裁掉，节点高度仍由 <code>size</code> 决定。</p>
+        <p>开启 <code>wrap</code> 后，中文可以逐字折行，英文优先按空格保留单词；单个单词超过整行宽度时再拆分。行高由字体度量决定，节点高度仍由 <code>size</code> 决定。多行超出高度时，按 <code>valign</code> 保留能放下的完整行：top 显示开头，middle 显示中间，bottom 显示末尾，适合持续追加的底部字幕。高度不足一行时仍按 Text 矩形裁切。</p>
         <p>单行模式同样在自身矩形内显示。文本中的 <code>&amp;lt;</code>、<code>&amp;amp;</code> 等 XML 实体在显示前还原。Text 只能放文字内容。</p>
       </section>
 
@@ -439,13 +439,15 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
   size="48,48"
   src="assets/board.png"
   fit="contain" /&gt;</code></pre>
-        <p class="small">节点矩形由 <code>size</code> 决定。<code>contain</code> 将图片等比居中，留白处显示当前节点的填充色；<code>cover</code> 将图片等比居中并裁掉超出自身矩形的部分。<code>radius</code> 同时裁切图片和填充色。Image 不包含子节点。</p>
+        <p class="small">节点矩形由 <code>size</code> 决定。<code>contain</code> 将图片等比居中，留白处显示当前节点的填充色；<code>cover</code> 将图片等比居中并裁掉超出自身矩形的部分。<code>radius</code> 同时裁切图片和填充色。Image 可以包含 Text、Block 等子节点，先绘制图片再绘制子节点。子节点以 Image 的布局矩形为参考，不按 contain 留白区缩放；radius 不裁子树。</p>
         <h3>普通 GIF 与分段 GIF</h3>
         <p>默认 <code>playback="auto"</code>，按 GIF 的帧延迟和循环次数自动播放；有限次播放结束后保持末帧。这种模式不解析文件名。设置 <code>playback="segmented"</code> 后，文件名尾部定义进入、保持/循环与回正段，帧速率保持不变。</p>
-        <pre><code class="language-xml">&lt;image id="normal" src="gif/smile_[0.5s].gif"
-  size="500,500" fit="contain" playback="segmented" /&gt;
-&lt;image id="happy" src="gif/laugh_[0.5s, 1.0s].gif"
-  size="500,500" fit="contain" playback="segmented" visible="false" /&gt;</code></pre>
+        <pre><code class="language-xml">&lt;image id="face" src="gif/smile_[0.5s].gif"
+  size="-1,-1" fit="contain" playback="segmented"&gt;
+  &lt;text id="answer" anchor="0,1" pivot="0,1" size="-1,100"
+    margin="40,0,40,0" position="0,-20" font-size="28"
+    align="center" valign="bottom" wrap="true" /&gt;
+&lt;/image&gt;</code></pre>
         <div class="table-wrap">
           <table>
             <thead><tr><th>文件名尾部</th><th>保持或循环规则</th><th>请求回正后</th></tr></thead>
@@ -460,17 +462,22 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
         <p>第二个参数是结束位置，不是时长。秒数可以是小数，不需要对齐帧边界；帧索引从 0 开始，按每帧真实延迟换算。支持逗号周围空格和 <code>2.0 s</code> 写法，但一组参数不能混用秒和帧。位置不能越过 GIF 末尾；单个保持点允许正好等于总时长，此时停在末帧。错误会在加载时报告 XML 文件与行列位置。</p>
         <h3>回正完成后切换</h3>
         <p>对当前可见的分段 GIF 调用 <code>Finish</code>，立即提交结束请求。进入段尚未完成时，先完成进入，再跳过保持/循环段播放回正；循环中则播完当前轮再回正。完成回调在窗口主循环中执行一次，可以直接操作组件；返回的错误会结束 <code>Run</code>。</p>
-        <pre><code class="language-go">normal, err := page.GetImage("normal")
+        <pre><code class="language-go">face, err := page.GetImage("face")
 if err != nil { return err }
-happy, err := page.GetImage("happy")
-if err != nil { return err }
-return normal.Finish(func(*goui.Page) error {
-    if err := normal.SetVisible(false); err != nil { return err }
-    return happy.SetVisible(true)
+return face.Finish(func(*goui.Page) error {
+    return face.SetSource("gif/laugh_[0.5s, 1.0s].gif")
 })</code></pre>
-        <p><code>Finish</code> 必须提供完成回调，同次播放只允许请求一次；普通图片、auto GIF、隐藏节点不能调用。回调内直接使用组件，不要再次调用 <code>Dispatch</code>。隐藏图片或父 Block 会取消待完成回调并释放画布，重新显示从首帧开始；已经可见时再次 <code>SetVisible(true)</code> 不会重播。需要立即切换仍可直接隐藏旧图、显示新图。</p>
+        <p><code>Finish</code> 必须提供完成回调，同次播放只允许请求一次；普通图片、auto GIF、隐藏节点不能调用。回调内直接使用组件，不要再次调用 <code>Dispatch</code>。隐藏图片或父 Block 会取消待完成回调并释放画布，重新显示从首帧开始；已经可见时再次 <code>SetVisible(true)</code> 不会重播。需要立即切换可直接调用 <code>SetSource</code>。</p>
+        <h3>通过 Go 修改图片路径</h3>
+        <p><code>Image.SetSource("assets/next.png")</code> 按需加载 UI 目录中的新资源，沿用 Image 的 <code>fit</code>、<code>playback</code>、布局和样式。成功后替换当前图片，从首帧播放；失败保留旧图。同一路径也会重新加载。图片子节点和已有文字保持不变。</p>
+        <p>一个 Image 就可以轮换不同表情，无需为每张 GIF 建节点。只有初始 src 和实际换源的目标会被解码，不预加载整个候选表，也不缓存所有 GIF；替换后释放对旧素材、播放画布和旧完成回调的引用。segmented 模式换入的仍须是带合法参数的 GIF；普通图片互换使用 auto。</p>
+        <pre><code class="language-go">err := app.Dispatch(ctx, func(page *goui.Page) error {
+    face, err := page.GetImage("face")
+    if err != nil { return err }
+    return face.SetSource("gif/laugh_[0.5s, 1.0s].gif")
+})</code></pre>
         <p>两种模式都复用窗口帧循环，不增加 goroutine 或独立定时器；仅帧变化时更新图片脏区。GIF 的透明色、局部帧处置、Image 缩放、圆角与 Block 动画仍然有效。</p>
-        <p class="small">可运行示例在 <code>example/robot-face/</code>。设备页面只显示黑底 GIF，23 张素材已启用分段，按 0～10 的情绪值、唤醒度选择最近坐标。访问 <code>http://localhost:8080/</code> 使用 Web 面板，或向 <code>POST /api/emotion</code> 发送 <code>{"valence":9,"arousal":9}</code>。HTTP 更新通过 <code>app.Dispatch</code> 提交；响应中的 <code>expression</code> 是实际表情，<code>target</code> 是最新目标，<code>transitioning</code> 表示等待回正。连续输入只保留最新目标。浏览器仅预览原始 GIF，不模拟分段，实际效果以设备为准。</p>
+        <p class="small">可运行示例在 <code>example/robot-face/</code>。设备页面用一个 Image 显示黑底 GIF，内部 Text 显示底部回答和交互状态。23 张素材登记在项目代码中，按需换源并分段播放，按 0～10 的情绪值、唤醒度选择最近坐标。访问 <code>http://localhost:8080/</code> 使用 Web 面板，或向 <code>POST /api/emotion</code> 发送 <code>{"valence":9,"arousal":9}</code>。HTTP 更新通过 <code>app.Dispatch</code> 提交；响应中的 <code>expression</code> 是实际表情，<code>target</code> 是最新目标，<code>transitioning</code> 表示等待回正。连续输入只保留最新目标。<code>POST /api/display</code> 的 <code>text</code> 替换回答、<code>append</code> 追加模型增量、<code>status</code> 切换 idle/listening/thinking/speaking。以上 Gin 接口和机器人规则都属于示例项目，GoUI 框架只提供组件操作与绘制。浏览器仅预览原始 GIF，不模拟分段，实际效果以设备为准。</p>
       </section>
 
       <section class="doc-section" id="button">
@@ -793,7 +800,7 @@ return button.SetDisabled(true)</code></pre>
               <tr><td>&lt;ui&gt;</td><td>页面根节点，覆盖渲染目标。</td><td><code>id</code>、<code>color</code></td><td>是</td></tr>
               <tr><td>&lt;block&gt;</td><td>基础矩形、填充色、坐标空间和分组。</td><td>布局属性、通用属性；Go API 可移动、旋转、缩放</td><td>是</td></tr>
               <tr><td>&lt;text&gt;</td><td>显示单行或自动换行文字。</td><td>布局与通用属性、<code>font</code>、<code>font-size</code>、<code>text-color</code>、<code>align</code>、<code>valign</code>、<code>wrap</code></td><td>文字内容</td></tr>
-              <tr><td>&lt;image&gt;</td><td>绘制静态图片或播放 GIF 动画。</td><td>布局与通用属性、<code>src</code>、<code>fit</code>、<code>playback</code></td><td>否</td></tr>
+              <tr><td>&lt;image&gt;</td><td>绘制静态图片或播放 GIF 动画。</td><td>布局与通用属性、<code>src</code>、<code>fit</code>、<code>playback</code>；Go API 可 SetSource</td><td>是</td></tr>
               <tr><td>&lt;button&gt;</td><td>可命中的交互区域，可组合子节点。</td><td>布局与通用属性、<code>disabled</code>、<code>hover-color</code>；鼠标事件由 Go 代码绑定</td><td>是</td></tr>
               <tr><td>&lt;component&gt;</td><td>展开组件文件并给 ID 加点号前缀。</td><td>引用：<code>src</code>、<code>name</code>；定义：透明根包装</td><td>定义中可有多个节点；引用为空标签</td></tr>
             </tbody>

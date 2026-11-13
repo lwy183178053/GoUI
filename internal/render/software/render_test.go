@@ -310,6 +310,30 @@ func TestTextClipsToOwnRectangle(t *testing.T) {
 	}
 }
 
+// 长回答按节点高度选择完整行，底部对齐时应只留下最新内容。
+func TestWrappedTextOverflowShowsCompleteLines(t *testing.T) {
+	for _, test := range []struct {
+		align, want string
+	}{
+		{"top", "AAAA\nBBBB"},
+		{"middle", "CCCC\nDDDD"},
+		{"bottom", "EEEE\nFFFF"},
+	} {
+		t.Run(test.align, func(t *testing.T) {
+			rect := image.Rect(0, 0, 80, 31) // 13px 行高，只能容纳两行。
+			style := ui.TextStyle{Content: "AAAA\nBBBB\nCCCC\nDDDD\nEEEE\nFFFF", Color: red, Wrap: true, VAlign: test.align}
+			got := image.NewRGBA(rect)
+			paintText(got, rect, &style, basicfont.Face7x13, rect)
+			style.Content = test.want
+			want := image.NewRGBA(rect)
+			paintText(want, rect, &style, basicfont.Face7x13, rect)
+			if inkBounds(got).Empty() || !reflect.DeepEqual(got.Pix, want.Pix) {
+				t.Fatal("多行溢出时出现半行文字，或保留了错误的段落")
+			}
+		})
+	}
+}
+
 func TestTextUsesSelectedFontAndOwnColor(t *testing.T) {
 	regular := textNode(0, 0, 100, 30, "Preview")
 	bold := textNode(0, 0, 100, 30, "Preview")

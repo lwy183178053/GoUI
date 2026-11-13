@@ -1,22 +1,24 @@
-package main
+// Package robot 只实现机器人项目的表情与显示业务，不属于 GoUI 框架。
+package robot
 
-import "errors"
+import "fmt"
 
-// vector 的顺序始终是情绪值、唤醒度，两项都只接受 0～10 的整数。
-type vector struct {
+// Vector 的顺序始终是情绪值、唤醒度，两项都只接受 0～10 的整数。
+type Vector struct {
 	Valence int `json:"valence"`
 	Arousal int `json:"arousal"`
 }
 
-func (v vector) validate() error {
+// Validate 检查两个输入坐标的整数范围。
+func (v Vector) Validate() error {
 	if v.Valence < 0 || v.Valence > 10 || v.Arousal < 0 || v.Arousal > 10 {
-		return errors.New("valence 和 arousal 都必须是 0～10 的整数")
+		return fmt.Errorf("%w: valence 和 arousal 都必须是 0～10 的整数", ErrInvalidInput)
 	}
 	return nil
 }
 
-// expression 给一张 GIF 登记一个坐标；坐标是本示例的可调配置。
-type expression struct {
+// Expression 给一张 GIF 登记一个坐标；坐标是本示例的可调配置。
+type Expression struct {
 	Name    string `json:"name"`
 	Label   string `json:"label"`
 	Valence int    `json:"valence"`
@@ -24,7 +26,7 @@ type expression struct {
 	File    string `json:"file"`
 }
 
-var expressions = []expression{
+var expressions = []Expression{
 	{Name: "normal", Label: "正常", Valence: 5, Arousal: 5, File: "smile_[0.5s].gif"},
 	{Name: "happy", Label: "开心", Valence: 9, Arousal: 9, File: "laugh_[0.5s, 1.0s].gif"},
 	{Name: "angry", Label: "生气", Valence: 1, Arousal: 9, File: "angry_[2.0s].gif"},
@@ -50,9 +52,9 @@ var expressions = []expression{
 	{Name: "yummy", Label: "美味", Valence: 9, Arousal: 4, File: "yummy_[2.0 s].gif"},
 }
 
-func nearestExpression(input vector) (expression, error) {
-	if err := input.validate(); err != nil {
-		return expression{}, err
+func nearestExpression(input Vector) (Expression, error) {
+	if err := input.Validate(); err != nil {
+		return Expression{}, err
 	}
 	nearest := expressions[0]
 	bestDistance := 201 // 两轴范围都是 0～10，距离平方最大为 200。
@@ -66,4 +68,9 @@ func nearestExpression(input vector) (expression, error) {
 		}
 	}
 	return nearest, nil
+}
+
+// Expressions 返回坐标登记表的副本，调用方不能修改项目内的选取顺序。
+func Expressions() []Expression {
+	return append([]Expression(nil), expressions...)
 }

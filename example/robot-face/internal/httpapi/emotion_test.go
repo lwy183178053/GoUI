@@ -1,4 +1,4 @@
-package main
+package httpapi
 
 import (
 	"context"
@@ -8,12 +8,24 @@ import (
 	"strings"
 	"testing"
 
+	"example.com/goui-robot-face/internal/robot"
+	"example.com/goui-robot-face/internal/testui"
 	goui "github.com/lwy183178053/GoUI"
 )
 
+func testController(t *testing.T) (*robot.Controller, string) {
+	t.Helper()
+	app, directory, dispatch := testui.Open(t)
+	controller, err := robot.New(app.Page(), dispatch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return controller, directory
+}
+
 func TestEmotionHTTPAPI(t *testing.T) {
-	robot, directory := testRobot(t)
-	router := newRouter(robot, directory)
+	controller, directory := testController(t)
+	router := New(controller, directory)
 	request := func(method, path, body string) *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -25,8 +37,8 @@ func TestEmotionHTTPAPI(t *testing.T) {
 	t.Run("读取初始状态", func(t *testing.T) {
 		response := request(http.MethodGet, "/api/emotion", "")
 		var body struct {
-			Current     emotionState `json:"current"`
-			Expressions []expression `json:"expressions"`
+			Current     robot.EmotionState `json:"current"`
+			Expressions []robot.Expression `json:"expressions"`
 		}
 		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 			t.Fatal(err)
@@ -40,18 +52,18 @@ func TestEmotionHTTPAPI(t *testing.T) {
 	})
 	t.Run("向量切换", func(t *testing.T) {
 		response := request(http.MethodPost, "/api/emotion", `{"valence":9,"arousal":9}`)
-		if response.Code != http.StatusOK || robot.state().Target.Name != "happy" || !robot.state().Transitioning {
+		if response.Code != http.StatusOK || controller.Emotion().Target.Name != "happy" || !controller.Emotion().Transitioning {
 			t.Fatalf("切换失败：%d, %s", response.Code, response.Body.String())
 		}
 	})
 	t.Run("整数零可以使用", func(t *testing.T) {
 		response := request(http.MethodPost, "/api/emotion", `{"valence":0,"arousal":0}`)
-		if response.Code != http.StatusOK || robot.state().Vector != (vector{0, 0}) {
+		if response.Code != http.StatusOK || controller.Emotion().Vector != (robot.Vector{Valence: 0, Arousal: 0}) {
 			t.Fatalf("零值被拒绝：%d, %s", response.Code, response.Body.String())
 		}
 	})
 	t.Run("拒绝非法输入且保留状态", func(t *testing.T) {
-		before := robot.state()
+		before := controller.Emotion()
 		for _, body := range []string{
 			"", "{}", "null", "[8,8]",
 			`{"valence":8}`, `{"valence":null,"arousal":8}`,
@@ -65,7 +77,7 @@ func TestEmotionHTTPAPI(t *testing.T) {
 			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "error") {
 				t.Errorf("非法请求 %q = %d, %s", body, response.Code, response.Body.String())
 			}
-			if robot.state() != before {
+			if controller.Emotion() != before {
 				t.Fatal("非法请求修改了当前表情")
 			}
 		}
@@ -84,21 +96,24 @@ func TestEmotionHTTPAPI(t *testing.T) {
 		}
 	})
 	t.Run("窗口退出后报告不可用", func(t *testing.T) {
-		previous := robot.dispatch
-		defer func() { robot.dispatch = previous }()
-		robot.dispatch = func(context.Context, func(*goui.Page) error) error {
-			return context.Canceled
-		}
-		response := request(http.MethodPost, "/api/emotion", `{"valence":1,"arousal":9}`)
-		if response.Code != http.StatusServiceUnavailable {
-			t.Fatalf("窗口不可用时返回 %d", response.Code)
-		}
-		robot.dispatch = func(context.Context, func(*goui.Page) error) error {
-			return context.DeadlineExceeded
-		}
-		response = request(http.MethodPost, "/api/emotion", `{"valence":1,"arousal":9}`)
-		if response.Code != http.StatusGatewayTimeout {
-			t.Fatalf("等待窗口超时时返回 %d", response.Code)
+		app, directory, _ := testui.Open(t)
+		for _, test := range []struct {
+			err    error
+			status int
+		}{
+			{context.Canceled, http.StatusServiceUnavailable},
+			{context.DeadlineExceeded, http.StatusGatewayTimeout},
+		} {
+			controller, err := robot.New(app.Page(), func(context.Context, func(*goui.Page) error) error { return test.err })
+			if err != nil {
+				t.Fatal(err)
+			}
+			response := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/api/emotion", strings.NewReader(`{"valence":1,"arousal":9}`))
+			New(controller, directory).ServeHTTP(response, req)
+			if response.Code != test.status {
+				t.Fatalf("窗口错误状态码 = %d，期望 %d", response.Code, test.status)
+			}
 		}
 	})
 }
