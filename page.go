@@ -15,6 +15,7 @@ type pageControls interface {
 	SetColor(string, color.NRGBA) error
 	SetTextColor(string, color.NRGBA) error
 	SetVisible(string, bool) error
+	FinishImage(string, func() error) error
 	SetDisabled(string, bool) error
 	SetButtonEvent(string, ui.ButtonEvent, func() error) error
 	MoveTo(string, int, int, time.Duration) error
@@ -158,9 +159,6 @@ func (t *Text) SetTextColor(value color.NRGBA) error {
 	}
 	return target.SetTextColor(t.id, value)
 }
-
-// Image 是可显示和隐藏的图片组件。
-type Image struct{ Block }
 
 // Button 是可绑定鼠标事件的按钮组件。
 type Button struct{ Block }

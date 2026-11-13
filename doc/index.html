@@ -425,8 +425,9 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
           <table>
             <thead><tr><th>属性</th><th>类型 / 默认值</th><th>说明</th></tr></thead>
             <tbody>
-              <tr><td>src</td><td>路径，必需</td><td>资源路径，相对于启动时指定的 UI 目录，例如 <code>assets/board.png</code>。支持 PNG、JPEG 和 GIF；多帧 GIF 按文件的帧延迟与循环次数播放。</td></tr>
+              <tr><td>src</td><td>路径，必需</td><td>资源路径，相对于启动时指定的 UI 目录，例如 <code>assets/board.png</code>。支持 PNG、JPEG 和 GIF；播放速度始终使用 GIF 本身的帧延迟。</td></tr>
               <tr><td>fit</td><td>stretch / contain / cover，默认 stretch</td><td><code>stretch</code> 拉伸填满，<code>contain</code> 保持比例完整显示，<code>cover</code> 保持比例铺满并裁剪。</td></tr>
+              <tr><td>playback</td><td>auto / segmented，默认 auto</td><td>auto 使用 GIF 内的循环次数；segmented 从文件名读取进入、保持/循环与回正段，仅用于 GIF。</td></tr>
             </tbody>
           </table>
         </div>
@@ -439,21 +440,37 @@ selfOrigin = parentAnchor + position − selfRect.size × pivot</div>
   src="assets/board.png"
   fit="contain" /&gt;</code></pre>
         <p class="small">节点矩形由 <code>size</code> 决定。<code>contain</code> 将图片等比居中，留白处显示当前节点的填充色；<code>cover</code> 将图片等比居中并裁掉超出自身矩形的部分。<code>radius</code> 同时裁切图片和填充色。Image 不包含子节点。</p>
-        <h3>用 GIF 播放表情</h3>
-        <p>多帧 GIF 加载后自动播放，不需要额外标签、播放 API 或独立定时器。帧延迟、循环次数和局部帧的处置规则都来自 GIF 文件；有限次播放结束后保持最后一帧。文件名里的时长仅用于描述素材，不决定播放速度。</p>
+        <h3>普通 GIF 与分段 GIF</h3>
+        <p>默认 <code>playback="auto"</code>，按 GIF 的帧延迟和循环次数自动播放；有限次播放结束后保持末帧。这种模式不解析文件名。设置 <code>playback="segmented"</code> 后，文件名尾部定义进入、保持/循环与回正段，帧速率保持不变。</p>
         <pre><code class="language-xml">&lt;image id="normal" src="gif/smile_[0.5s].gif"
-  size="500,500" fit="contain" /&gt;
+  size="500,500" fit="contain" playback="segmented" /&gt;
 &lt;image id="happy" src="gif/laugh_[0.5s, 1.0s].gif"
-  size="500,500" fit="contain" visible="false" /&gt;</code></pre>
-        <p>把不同表情放在相同位置，每次只显示一张。切换时在同一个按钮回调中隐藏旧图片、显示新图片，不叠加表情，也不需要淡入淡出：</p>
+  size="500,500" fit="contain" playback="segmented" visible="false" /&gt;</code></pre>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>文件名尾部</th><th>保持或循环规则</th><th>请求回正后</th></tr></thead>
+            <tbody>
+              <tr><td><code>_[0.5s]</code></td><td>播放前 0.5 秒，停在该位置。</td><td>从暂停位置继续到末尾。</td></tr>
+              <tr><td><code>_[0.5s,1.5s]</code></td><td>0～0.5 秒进入，0.5～1.5 秒循环。</td><td>结束当前轮后，播放 1.5 秒之后的回正段。</td></tr>
+              <tr><td><code>_[29]</code></td><td>从第 0 帧播放到第 29 帧并保持。</td><td>从保持处继续。</td></tr>
+              <tr><td><code>_[29,50]</code></td><td>29 之前进入，29～50 帧循环，包含第 50 帧。</td><td>结束当前轮后，播放第 50 帧之后的回正段。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>第二个参数是结束位置，不是时长。秒数可以是小数，不需要对齐帧边界；帧索引从 0 开始，按每帧真实延迟换算。支持逗号周围空格和 <code>2.0 s</code> 写法，但一组参数不能混用秒和帧。位置不能越过 GIF 末尾；单个保持点允许正好等于总时长，此时停在末帧。错误会在加载时报告 XML 文件与行列位置。</p>
+        <h3>回正完成后切换</h3>
+        <p>对当前可见的分段 GIF 调用 <code>Finish</code>，立即提交结束请求。进入段尚未完成时，先完成进入，再跳过保持/循环段播放回正；循环中则播完当前轮再回正。完成回调在窗口主循环中执行一次，可以直接操作组件；返回的错误会结束 <code>Run</code>。</p>
         <pre><code class="language-go">normal, err := page.GetImage("normal")
 if err != nil { return err }
 happy, err := page.GetImage("happy")
 if err != nil { return err }
-if err := normal.SetVisible(false); err != nil { return err }
-return happy.SetVisible(true)</code></pre>
-        <p>隐藏图片或它的父 Block 后，GIF 不再推进并释放播放画布；重新显示时从第一帧开始。已经可见的图片再次调用 <code>SetVisible(true)</code> 不会重播。需要主动重播时，在同一个回调中先隐藏再显示该图片。GIF 仍共享 Image 的缩放、圆角和 Block 动画能力。</p>
-        <p class="small">可运行示例位于 <code>example/robot-face/</code>。设备页面只显示黑底 GIF，23 张素材按 0～10 的情绪值、唤醒度选择最近坐标。运行后访问 <code>http://localhost:8080/</code> 使用 Web 调试面板，或向 <code>POST /api/emotion</code> 发送 <code>{"valence":9,"arousal":9}</code>。HTTP 更新通过 <code>app.Dispatch</code> 交给窗口主循环执行；下载素材保持不变。</p>
+return normal.Finish(func(*goui.Page) error {
+    if err := normal.SetVisible(false); err != nil { return err }
+    return happy.SetVisible(true)
+})</code></pre>
+        <p><code>Finish</code> 必须提供完成回调，同次播放只允许请求一次；普通图片、auto GIF、隐藏节点不能调用。回调内直接使用组件，不要再次调用 <code>Dispatch</code>。隐藏图片或父 Block 会取消待完成回调并释放画布，重新显示从首帧开始；已经可见时再次 <code>SetVisible(true)</code> 不会重播。需要立即切换仍可直接隐藏旧图、显示新图。</p>
+        <p>两种模式都复用窗口帧循环，不增加 goroutine 或独立定时器；仅帧变化时更新图片脏区。GIF 的透明色、局部帧处置、Image 缩放、圆角与 Block 动画仍然有效。</p>
+        <p class="small">可运行示例在 <code>example/robot-face/</code>。设备页面只显示黑底 GIF，23 张素材已启用分段，按 0～10 的情绪值、唤醒度选择最近坐标。访问 <code>http://localhost:8080/</code> 使用 Web 面板，或向 <code>POST /api/emotion</code> 发送 <code>{"valence":9,"arousal":9}</code>。HTTP 更新通过 <code>app.Dispatch</code> 提交；响应中的 <code>expression</code> 是实际表情，<code>target</code> 是最新目标，<code>transitioning</code> 表示等待回正。连续输入只保留最新目标。浏览器仅预览原始 GIF，不模拟分段，实际效果以设备为准。</p>
       </section>
 
       <section class="doc-section" id="button">
@@ -776,7 +793,7 @@ return button.SetDisabled(true)</code></pre>
               <tr><td>&lt;ui&gt;</td><td>页面根节点，覆盖渲染目标。</td><td><code>id</code>、<code>color</code></td><td>是</td></tr>
               <tr><td>&lt;block&gt;</td><td>基础矩形、填充色、坐标空间和分组。</td><td>布局属性、通用属性；Go API 可移动、旋转、缩放</td><td>是</td></tr>
               <tr><td>&lt;text&gt;</td><td>显示单行或自动换行文字。</td><td>布局与通用属性、<code>font</code>、<code>font-size</code>、<code>text-color</code>、<code>align</code>、<code>valign</code>、<code>wrap</code></td><td>文字内容</td></tr>
-              <tr><td>&lt;image&gt;</td><td>绘制静态图片或播放 GIF 动画。</td><td>布局与通用属性、<code>src</code>、<code>fit</code></td><td>否</td></tr>
+              <tr><td>&lt;image&gt;</td><td>绘制静态图片或播放 GIF 动画。</td><td>布局与通用属性、<code>src</code>、<code>fit</code>、<code>playback</code></td><td>否</td></tr>
               <tr><td>&lt;button&gt;</td><td>可命中的交互区域，可组合子节点。</td><td>布局与通用属性、<code>disabled</code>、<code>hover-color</code>；鼠标事件由 Go 代码绑定</td><td>是</td></tr>
               <tr><td>&lt;component&gt;</td><td>展开组件文件并给 ID 加点号前缀。</td><td>引用：<code>src</code>、<code>name</code>；定义：透明根包装</td><td>定义中可有多个节点；引用为空标签</td></tr>
             </tbody>

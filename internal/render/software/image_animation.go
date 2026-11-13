@@ -2,83 +2,72 @@ package software
 
 import (
 	"fmt"
-	"image"
 	"time"
 
 	"github.com/lwy183178053/GoUI/internal/layout"
 	"github.com/lwy183178053/GoUI/internal/ui"
 )
 
-// imagePlayback 只为正在显示的 GIF 合成帧，不单独启动定时器。
-type imagePlayback struct {
-	animation    *ui.GIFAnimation
-	decoder      *ui.GIFFramePlayer
-	currentFrame image.Image
-	duration     time.Duration
-	started      time.Time
-	current      int
-}
-
-func newImagePlayback(animation *ui.GIFAnimation) *imagePlayback {
-	player := &imagePlayback{animation: animation, current: -1}
-	for _, frame := range animation.Frames {
-		player.duration += frame.Delay
-	}
-	return player
-}
-
-func (p *imagePlayback) advance(now time.Time) (bool, error) {
-	if p.started.IsZero() {
-		p.started = now
-		p.decoder = p.animation.NewPlayer()
-	}
-	frame := p.frameAt(now.Sub(p.started))
-	if frame == p.current {
-		return false, nil
-	}
-	image, err := p.decoder.Frame(frame)
+// FinishImage 在主循环中请求分段 GIF 回正，不阻塞调用者。
+func (r *Renderer) FinishImage(id string, onDone func() error) error {
+	node, _, err := r.node(id)
 	if err != nil {
-		return false, err
+		return err
 	}
-	p.currentFrame = image
-	p.current = frame
-	return true, nil
-}
-
-func (p *imagePlayback) frameAt(elapsed time.Duration) int {
-	if len(p.animation.Frames) < 2 || p.duration <= 0 || elapsed <= 0 {
-		return 0
+	player := r.imagePlayers[node]
+	if player == nil || player.animation.Segments == nil {
+		return fmt.Errorf("UI id %q is not a segmented GIF image", id)
 	}
-	if p.animation.LoopCount < 0 && elapsed >= p.duration {
-		return len(p.animation.Frames) - 1
+	if onDone == nil {
+		return fmt.Errorf("image finish callback is required")
 	}
-	if p.animation.LoopCount > 0 && elapsed >= p.duration*time.Duration(p.animation.LoopCount+1) {
-		return len(p.animation.Frames) - 1
+	if !nodeVisible(r.document.Root, node) {
+		return fmt.Errorf("UI id %q is hidden", id)
 	}
-	elapsed %= p.duration
-	for i, frame := range p.animation.Frames {
-		if elapsed < frame.Delay {
-			return i
+	return player.finish(time.Now(), func() error {
+		if err := onDone(); err != nil {
+			return &ui.Error{Source: node.Source, Err: fmt.Errorf("finish GIF %q: %w", node.Image.Source, err)}
 		}
-		elapsed -= frame.Delay
+		return nil
+	})
+}
+
+func nodeVisible(root, target *ui.Node) bool {
+	if !root.Visible {
+		return false
 	}
-	return len(p.animation.Frames) - 1
+	if root == target {
+		return true
+	}
+	for _, child := range root.Children {
+		if nodeVisible(child, target) {
+			return true
+		}
+	}
+	return false
 }
 
-// reset 让下一次显示从 GIF 第一帧开始，也释放当前帧画布。
-func (p *imagePlayback) reset() {
-	p.decoder = nil
-	p.currentFrame = nil
-	p.started = time.Time{}
-	p.current = -1
-}
-
-func (p *imagePlayback) frame() image.Image {
-	return p.currentFrame
+func (r *Renderer) advanceImageAnimations(box *layout.Box, now time.Time) error {
+	var completed []func() error
+	if err := r.advanceImageTree(box, now, &completed); err != nil {
+		return err
+	}
+	// 先走完整棵树再执行回调，避免显隐操作使结果依赖 XML 中的先后顺序。
+	for _, callback := range completed {
+		if err := callback(); err != nil {
+			return err
+		}
+	}
+	if len(completed) > 0 {
+		// 回调可能显示另一张 GIF，绘制前先准备其首帧，避免一帧空白或重影。
+		// 这一遍不取回调，新完成的播放留到下一帧处理，避免回调递归。
+		return r.advanceImageTree(r.layout, now, nil)
+	}
+	return nil
 }
 
 // 沿布局树推进 GIF；父节点隐藏时，不再访问它的子树。
-func (r *Renderer) advanceImageAnimations(box *layout.Box, now time.Time) error {
+func (r *Renderer) advanceImageTree(box *layout.Box, now time.Time, completed *[]func() error) error {
 	if len(r.imagePlayers) == 0 || !box.Node.Visible {
 		return nil
 	}
@@ -92,9 +81,14 @@ func (r *Renderer) advanceImageAnimations(box *layout.Box, now time.Time) error 
 			delete(r.layers, box.Node)
 			r.invalidate(box.Pixels)
 		}
+		if completed != nil {
+			if callback := player.takeCompletion(); callback != nil {
+				*completed = append(*completed, callback)
+			}
+		}
 	}
 	for _, child := range box.Children {
-		if err := r.advanceImageAnimations(child, now); err != nil {
+		if err := r.advanceImageTree(child, now, completed); err != nil {
 			return err
 		}
 	}

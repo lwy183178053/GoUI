@@ -29,17 +29,18 @@
         <div class="matrix-top"><span>↑ 唤醒度 / 激动</span><span>点击任意位置应用</span></div>
         <div id="matrix" class="matrix" role="group" aria-label="情绪值与唤醒度坐标"></div>
         <div class="matrix-bottom"><span>消极</span><span>情绪值 →</span><span>积极</span></div>
-        <div class="legend"><span><i class="input-mark"></i>输入位置</span><span><i class="expression-mark"></i>选中的 GIF</span><span>带文字的格子是素材坐标</span></div>
+        <div class="legend"><span><i class="input-mark"></i>输入位置</span><span><i class="expression-mark"></i>目标 GIF</span><span>带文字的格子是素材坐标</span></div>
       </section>
 
       <section class="panel state-panel" aria-labelledby="state-title">
         <div class="panel-heading"><h2 id="state-title">设备当前状态</h2><span class="caption">每秒同步</span></div>
         <div class="preview"><img id="preview" alt="当前表情素材预览" hidden></div>
         <div class="current-summary">
-          <div><p class="caption">选中表情</p><h3 id="expression-name">等待连接</h3></div>
+          <div><p class="caption">当前表情</p><h3 id="expression-name">等待连接</h3></div>
           <span id="expression-code" class="code-name">—</span>
         </div>
-        <p class="preview-note">这里是 GIF 素材预览，播放进度与设备独立。</p>
+        <p id="playback-state" class="message" role="status">等待设备状态…</p>
+        <p class="preview-note">这里循环预览原始 GIF，不模拟分段与回正；实际播放以设备屏幕为准。</p>
         <form id="vector-form">
           <div class="fields">
             <label for="valence">情绪值 <span>消极 → 积极</span><input id="valence" name="valence" type="number" min="0" max="10" step="1" value="5" required></label>
@@ -59,7 +60,7 @@
 
     <details class="api-section">
       <summary><span>接口调用</span><span class="caption">POST /api/emotion</span></summary>
-      <p>大模型或其它程序发送两个整数即可。GET 同一路径可读取当前状态和全部素材坐标。</p>
+      <p>大模型或其它程序发送两个整数即可。请求成功表示已接收目标，设备完成回正后再切换。GET 同一路径可读取当前表情、目标和回正状态。</p>
       <pre><code id="api-example"></code></pre>
     </details>
     <footer><span>GoUI / GIF EXPRESSION</span><span>坐标决定选择，GIF 提供动作。</span></footer>

@@ -93,7 +93,7 @@ func loadNode(e *element, doc *Document, root bool, fsys fs.FS) (*Node, error) {
 		allowed = append(append([]string(nil), commonAttributes...), "font", "font-size", "text-color", "align", "valign", "wrap")
 		node.Text = &TextStyle{Font: "default", FontSize: 16, Color: color.NRGBA{R: 244, G: 247, B: 247, A: 255}, Align: "left", VAlign: "middle"}
 	case node.Kind == Image:
-		allowed = append(append([]string(nil), commonAttributes...), "src", "fit")
+		allowed = append(append([]string(nil), commonAttributes...), "src", "fit", "playback")
 		node.Image = &ImageStyle{Fit: "stretch"}
 	case node.Kind == Button:
 		allowed = append(append([]string(nil), commonAttributes...), "disabled", "hover-color")
@@ -179,6 +179,13 @@ func loadImage(e *element, style *ImageStyle, fsys fs.FS, doc *Document) error {
 		}
 		style.Fit = value
 	}
+	playback := "auto"
+	if value, exists := e.attrs["playback"]; exists {
+		if value != "auto" && value != "segmented" {
+			return at(e.source, "playback must be auto or segmented")
+		}
+		playback = value
+	}
 	asset, err := assetPath(src)
 	if err != nil {
 		return at(e.source, "image src must be relative to the UI directory")
@@ -196,7 +203,13 @@ func loadImage(e *element, style *ImageStyle, fsys fs.FS, doc *Document) error {
 		if err != nil {
 			return at(e.source, "decode GIF %q: %w", src, err)
 		}
-		if len(animation.Frames) > 1 {
+		if playback == "segmented" {
+			animation.Segments, err = parseGIFSegments(src, animation)
+			if err != nil {
+				return at(e.source, "GIF %q: %w", src, err)
+			}
+		}
+		if len(animation.Frames) > 1 || animation.Segments != nil {
 			style.Animation = animation
 		} else {
 			style.Image, err = animation.NewPlayer().Frame(0)
@@ -205,6 +218,9 @@ func loadImage(e *element, style *ImageStyle, fsys fs.FS, doc *Document) error {
 			}
 		}
 	} else {
+		if playback == "segmented" {
+			return at(e.source, "playback=segmented requires a GIF image, got %q", src)
+		}
 		decoded, _, err := image.Decode(bytes.NewReader(data))
 		if err != nil {
 			return at(e.source, "decode image %q: %w", src, err)

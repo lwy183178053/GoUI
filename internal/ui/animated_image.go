@@ -18,6 +18,7 @@ type GIFAnimation struct {
 	Frames     []GIFFrame
 	LoopCount  int
 	Background color.Color
+	Segments   *GIFSegments
 }
 
 type GIFFrame struct {
@@ -69,6 +70,15 @@ func decodeGIF(data []byte) (*GIFAnimation, error) {
 		}
 	}
 	return animation, nil
+}
+
+// Duration 使用每帧的原始延迟计算总时长，不从文件名推算帧率。
+func (a *GIFAnimation) Duration() time.Duration {
+	var duration time.Duration
+	for _, frame := range a.Frames {
+		duration += frame.Delay
+	}
+	return duration
 }
 
 // NewPlayer 为一次播放创建画布；隐藏的图片不调用它。

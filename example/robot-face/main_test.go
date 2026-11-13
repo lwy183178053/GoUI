@@ -15,7 +15,7 @@ import (
 	"golang.org/x/image/font/gofont/goregular"
 )
 
-// 使用两像素测试 GIF，接口测试无需反复解码整套大素材。
+// 使用两像素、共 30 秒的测试 GIF，覆盖素材的分段位置而无需解码大图。
 func testRobot(t *testing.T) (*robot, string) {
 	t.Helper()
 	directory := t.TempDir()
@@ -39,7 +39,7 @@ func testRobot(t *testing.T) (*robot, string) {
 	first.SetColorIndex(0, 0, 1)
 	second.SetColorIndex(1, 0, 1)
 	var data bytes.Buffer
-	if err := gif.EncodeAll(&data, &gif.GIF{Image: []*image.Paletted{first, second}, Delay: []int{4, 4}, LoopCount: 0}); err != nil {
+	if err := gif.EncodeAll(&data, &gif.GIF{Image: []*image.Paletted{first, second, first}, Delay: []int{1000, 1000, 1000}, LoopCount: 0}); err != nil {
 		t.Fatal(err)
 	}
 	for _, item := range expressions {
@@ -74,7 +74,7 @@ func testRobot(t *testing.T) (*robot, string) {
 func TestRobotStartsWithNormalExpression(t *testing.T) {
 	robot, _ := testRobot(t)
 	got := robot.state()
-	if got.Vector != (vector{5, 5}) || got.Expression.Name != "normal" || len(robot.images) != 23 {
+	if got.Vector != (vector{5, 5}) || got.Expression.Name != "normal" || got.Target.Name != "normal" || got.Transitioning || len(robot.images) != 23 {
 		t.Fatalf("初始状态不正确：%+v", got)
 	}
 }

@@ -40,7 +40,7 @@ func TestEmotionHTTPAPI(t *testing.T) {
 	})
 	t.Run("向量切换", func(t *testing.T) {
 		response := request(http.MethodPost, "/api/emotion", `{"valence":9,"arousal":9}`)
-		if response.Code != http.StatusOK || robot.state().Expression.Name != "happy" {
+		if response.Code != http.StatusOK || robot.state().Target.Name != "happy" || !robot.state().Transitioning {
 			t.Fatalf("切换失败：%d, %s", response.Code, response.Body.String())
 		}
 	})

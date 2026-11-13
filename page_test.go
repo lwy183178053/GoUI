@@ -12,6 +12,7 @@ import (
 )
 
 type testPageControls struct {
+	finish     func() error
 	kinds      map[string]ui.Kind
 	text       string
 	fill       color.NRGBA
@@ -46,6 +47,10 @@ func (p *testPageControls) SetTextColor(_ string, value color.NRGBA) error {
 func (p *testPageControls) SetVisible(_ string, value bool) error { p.visible = value; return nil }
 func (p *testPageControls) SetDisabled(_ string, value bool) error {
 	p.disabled = value
+	return nil
+}
+func (p *testPageControls) FinishImage(_ string, callback func() error) error {
+	p.finish = callback
 	return nil
 }
 func (p *testPageControls) SetButtonEvent(_ string, event ui.ButtonEvent, callback func() error) error {

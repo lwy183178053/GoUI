@@ -1,10 +1,6 @@
 package main
 
-import (
-	"context"
-	"sync"
-	"testing"
-)
+import "testing"
 
 func TestExpressionCoordinatesAreUniqueAndReachable(t *testing.T) {
 	coordinates := make(map[vector]string)
@@ -49,44 +45,5 @@ func TestVectorRejectsOutOfRangeCoordinates(t *testing.T) {
 		if _, err := nearestExpression(input); err == nil {
 			t.Errorf("非法坐标 %+v 没有报错", input)
 		}
-	}
-}
-
-func TestRobotSwitchesAndKeepsSameGIFPlaying(t *testing.T) {
-	robot, _ := testRobot(t)
-	got, err := robot.set(context.Background(), vector{9, 9})
-	if err != nil || got.Expression.Name != "happy" {
-		t.Fatalf("切换开心失败：%+v, %v", got, err)
-	}
-	// 同一张 GIF 的新坐标不应再调用它的显隐方法。
-	robot.images["happy"] = nil
-	got, err = robot.set(context.Background(), vector{10, 10})
-	if err != nil || got.Vector != (vector{10, 10}) || got.Expression.Name != "happy" {
-		t.Fatalf("重复选中应继续播放：%+v, %v", got, err)
-	}
-}
-
-func TestRobotHandlesConcurrentStateRequests(t *testing.T) {
-	robot, _ := testRobot(t)
-	var workers sync.WaitGroup
-	failures := make(chan error, len(expressions))
-	for _, item := range expressions {
-		workers.Go(func() {
-			_, err := robot.set(context.Background(), vector{item.Valence, item.Arousal})
-			failures <- err
-			_ = robot.state()
-		})
-	}
-	workers.Wait()
-	close(failures)
-	for err := range failures {
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	got := robot.state()
-	nearest, err := nearestExpression(got.Vector)
-	if err != nil || nearest.Name != got.Expression.Name {
-		t.Fatalf("并发更新后的状态不一致：%+v, %v", got, err)
 	}
 }

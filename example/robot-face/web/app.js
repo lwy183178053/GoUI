@@ -76,9 +76,12 @@ function buildControls(expressions) {
 
 function render(data) {
   if (!initialized) buildControls(data.expressions);
-  const {vector, expression} = data.current;
+  const {vector, expression, target, transitioning} = data.current;
   document.querySelector("#expression-name").textContent = expression.label;
   document.querySelector("#expression-code").textContent = expression.name;
+  document.querySelector("#playback-state").textContent = transitioning
+    ? `正在结束当前动作并回正 → 目标：${target.label}`
+    : "保持或循环当前表情，等待下一个向量";
   // 轮询时保留正在编辑的输入，避免用户输入到一半被设备状态覆盖。
   if (document.activeElement !== valence && document.activeElement !== arousal) {
     valence.value = vector.valence;
@@ -93,17 +96,17 @@ function render(data) {
   for (const button of matrix.querySelectorAll("button")) {
     const isInput = Number(button.dataset.valence) === vector.valence && Number(button.dataset.arousal) === vector.arousal;
     button.setAttribute("aria-pressed", String(isInput));
-    button.classList.toggle("is-match", button.dataset.expression === expression.name);
+    button.classList.toggle("is-match", button.dataset.expression === target.name);
   }
   for (const button of catalog.querySelectorAll("button")) {
-    button.setAttribute("aria-pressed", String(button.dataset.expression === expression.name));
+    button.setAttribute("aria-pressed", String(button.dataset.expression === target.name));
   }
   document.querySelector("#api-example").textContent = [
     `curl -X POST '${location.origin}/api/emotion' \\`,
     "  -H 'Content-Type: application/json' \\",
     `  -d '{"valence":${vector.valence},"arousal":${vector.arousal}}'`,
   ].join("\n");
-  setMessage(`输入 [${vector.valence}, ${vector.arousal}] → ${expression.label} · 素材坐标 [${expression.valence}, ${expression.arousal}]`);
+  setMessage(`输入 [${vector.valence}, ${vector.arousal}] → ${target.label} · 素材坐标 [${target.valence}, ${target.arousal}]${transitioning ? " · 等待回正" : ""}`);
   setConnection(true);
 }
 

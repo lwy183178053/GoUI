@@ -1,12 +1,6 @@
 package main
 
-import (
-	"context"
-	"errors"
-	"sync"
-
-	goui "github.com/lwy183178053/GoUI"
-)
+import "errors"
 
 // vector 的顺序始终是情绪值、唤醒度，两项都只接受 0～10 的整数。
 type vector struct {
@@ -72,73 +66,4 @@ func nearestExpression(input vector) (expression, error) {
 		}
 	}
 	return nearest, nil
-}
-
-type emotionState struct {
-	Vector     vector     `json:"vector"`
-	Expression expression `json:"expression"`
-}
-
-// robot 只负责选表情和图片显隐，不参与 GIF 解码与动画计时。
-type robot struct {
-	mu       sync.RWMutex
-	current  emotionState
-	images   map[string]*goui.Image
-	dispatch func(context.Context, func(*goui.Page) error) error
-}
-
-func newRobot(page *goui.Page, dispatch func(context.Context, func(*goui.Page) error) error) (*robot, error) {
-	initial := vector{Valence: 5, Arousal: 5}
-	normal, err := nearestExpression(initial)
-	if err != nil {
-		return nil, err
-	}
-	robot := &robot{images: make(map[string]*goui.Image), dispatch: dispatch}
-	for _, item := range expressions {
-		image, err := page.GetImage("expression-" + item.Name)
-		if err != nil {
-			return nil, err
-		}
-		robot.images[item.Name] = image
-		if err := image.SetVisible(item.Name == normal.Name); err != nil {
-			return nil, err
-		}
-	}
-	robot.current = emotionState{Vector: initial, Expression: normal}
-	return robot, nil
-}
-
-func (robot *robot) state() emotionState {
-	robot.mu.RLock()
-	defer robot.mu.RUnlock()
-	return robot.current
-}
-
-func (robot *robot) set(ctx context.Context, input vector) (emotionState, error) {
-	next, err := nearestExpression(input)
-	if err != nil {
-		return emotionState{}, err
-	}
-	var result emotionState
-	err = robot.dispatch(ctx, func(*goui.Page) error {
-		robot.mu.Lock()
-		defer robot.mu.Unlock()
-		if next.Name != robot.current.Expression.Name {
-			// 整个切换在主循环的一次任务中完成，中间不会插入绘制。
-			if err := robot.images[robot.current.Expression.Name].SetVisible(false); err != nil {
-				return err
-			}
-			if err := robot.images[next.Name].SetVisible(true); err != nil {
-				return err
-			}
-		}
-		// 同一张 GIF 只更新坐标，继续当前播放进度。
-		robot.current = emotionState{Vector: input, Expression: next}
-		result = robot.current
-		return nil
-	})
-	if err != nil {
-		return emotionState{}, err
-	}
-	return result, nil
 }
