@@ -119,7 +119,6 @@ func TestEmotionHTTPAPI(t *testing.T) {
 }
 
 func TestEmotionHTTPWindowUnavailable(t *testing.T) {
-	app, _, _ := testui.Open(t)
 	for _, test := range []struct {
 		err    error
 		status int
@@ -127,6 +126,7 @@ func TestEmotionHTTPWindowUnavailable(t *testing.T) {
 		{context.Canceled, http.StatusServiceUnavailable},
 		{context.DeadlineExceeded, http.StatusGatewayTimeout},
 	} {
+		app, _, _ := testui.Open(t)
 		controller, err := robot.New(app.Page(), func(context.Context, func(*goui.Page) error) error { return test.err })
 		if err != nil {
 			t.Fatal(err)

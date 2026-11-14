@@ -79,11 +79,20 @@ func run(uiDirectory, address string) error {
 			requestClose(app)
 		}
 	}()
+	microphoneErrors := make(chan error, 1)
+	go func() {
+		err := controller.RunMicrophone(ctx)
+		microphoneErrors <- err
+		if err != nil {
+			requestClose(app)
+		}
+	}()
 	go func() {
 		<-ctx.Done()
 		requestClose(app)
 	}()
 	log.Printf("Web 调试面板：http://localhost:%d；远程使用本机 IP 和同一端口", listener.Addr().(*net.TCPAddr).Port)
+	log.Print("右下角麦克风：点击开始录音，再次点击结束；当前保存本地 WAV，尚未连接语音识别服务")
 	log.Print("POST /api/display 传入完整 text，设备自动逐字显示；空字符串清空")
 	log.Print("GET /api/expressions 获取列表；POST /api/emotion 示例：{\"name\":\"music\",\"loop\":true,\"interrupt\":true}")
 
@@ -93,7 +102,7 @@ func run(uiDirectory, address string) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	shutdownErr := server.Shutdown(shutdownCtx)
-	return errors.Join(windowErr, shutdownErr, <-serverErrors, <-effectsErrors)
+	return errors.Join(windowErr, shutdownErr, <-serverErrors, <-effectsErrors, <-microphoneErrors)
 }
 
 func requestClose(app *goui.Application) {

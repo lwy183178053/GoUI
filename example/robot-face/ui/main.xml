@@ -2,9 +2,26 @@
   <!-- 只加载当前表情；换源不会重建下方的文字组件。 -->
   <image id="face" size="-1,-1" fit="contain"
     src="gif/smile_[0.5s].gif">
-    <!-- 提示、回答等所有文字共用此处。背景透明，长文字显示末尾几行。 -->
+    <!-- 所有提示和回答共用此处，右侧为麦克风留出空间。 -->
     <text id="caption" anchor="0,1" pivot="0,1" size="-1,120"
-      margin="40,0,40,0" position="0,-24" visible="false"
+      margin="112,0,112,0" position="0,-24" visible="false"
       font-size="28" text-color="#F2F6FA" align="center" valign="bottom" wrap="true" />
   </image>
+
+  <!-- 普通 Button 组合 Block 画出麦克风图标，不依赖图标字体。 -->
+  <button id="microphone" anchor="1,1" pivot="1,1" position="-24,-24"
+    size="64,64" radius="32" color="#182D3D">
+    <block anchor="0.5,0.5" pivot="0.5,0.5" position="0,-7"
+      size="14,24" radius="7" color="#E7F5FF" />
+    <block anchor="0.5,0.5" pivot="0.5,0.5" position="-12,0"
+      size="3,12" radius="1.5" color="#E7F5FF" />
+    <block anchor="0.5,0.5" pivot="0.5,0.5" position="12,0"
+      size="3,12" radius="1.5" color="#E7F5FF" />
+    <block anchor="0.5,0.5" pivot="0.5,0.5" position="0,6"
+      size="25,3" radius="1.5" color="#E7F5FF" />
+    <block anchor="0.5,0.5" pivot="0.5,0.5" position="0,12"
+      size="3,10" radius="1.5" color="#E7F5FF" />
+    <block anchor="0.5,0.5" pivot="0.5,0.5" position="0,17"
+      size="15,3" radius="1.5" color="#E7F5FF" />
+  </button>
 </ui>

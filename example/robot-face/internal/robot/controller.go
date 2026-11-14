@@ -24,7 +24,7 @@ type EmotionState struct {
 	Pending    *ExpressionRequest `json:"pending,omitempty"`
 }
 
-// Controller 操作项目 XML 中的一个 Image 和底部文字，框架负责解码与绘制。
+// Controller 操作项目 XML 中的表情、底部文字和麦克风按钮，框架负责解码与绘制。
 // 组件通过 dispatch 在窗口主循环中修改；mu 保护业务状态、眨眼计划和文字进度。
 type Controller struct {
 	mu          sync.RWMutex
@@ -36,6 +36,8 @@ type Controller struct {
 	effectsWake chan struct{}
 	face        *goui.Image
 	caption     *goui.Text
+	microphone  *goui.Button
+	micClicks   chan struct{}
 	dispatch    func(context.Context, func(*goui.Page) error) error
 }
 
@@ -53,10 +55,18 @@ func New(page *goui.Page, dispatch func(context.Context, func(*goui.Page) error)
 	if err != nil {
 		return nil, err
 	}
+	microphone, err := page.GetButton("microphone")
+	if err != nil {
+		return nil, err
+	}
 	controller := &Controller{
-		face: face, caption: caption, dispatch: dispatch,
+		face: face, caption: caption, microphone: microphone, dispatch: dispatch,
+		micClicks:   make(chan struct{}, 1),
 		effectsWake: make(chan struct{}, 1),
 		current:     EmotionState{Expression: expressions[0]},
+	}
+	if err := microphone.OnClick(controller.onMicrophoneClick); err != nil {
+		return nil, err
 	}
 	if err := controller.playExpression(expressions[0], false); err != nil {
 		return nil, err

@@ -46,26 +46,38 @@ func (c *Controller) SetDisplay(ctx context.Context, value string) (DisplayState
 	if !utf8.ValidString(value) || utf8.RuneCountInString(value) > MaxTextLength {
 		return DisplayState{}, fmt.Errorf("%w: text 必须是有效 UTF-8，不超过 %d 个字符", ErrInvalidInput, MaxTextLength)
 	}
-	characters := []rune(value)
 	var result DisplayState
 	err := c.dispatch(ctx, func(*goui.Page) error {
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		shown := min(1, len(characters))
-		visible := string(characters[:shown])
-		if err := c.caption.SetText(visible); err != nil {
+		if err := c.showText(value, true); err != nil {
 			return err
 		}
-		if err := c.caption.SetVisible(visible != ""); err != nil {
-			return err
-		}
-		c.typing = typewriter{characters: characters, started: time.Now(), shown: shown}
-		c.display = DisplayState{Text: value, VisibleText: visible, Typing: shown < len(characters)}
-		c.wakeEffects()
 		result = c.display
 		return nil
 	})
 	return result, err
+}
+
+// showText 在主循环且持有 mu 时调用。状态提示立即显示，回答可逐字显示。
+// 每次替换都清除旧打字进度，录音提示不会被上一句回答覆盖。
+func (c *Controller) showText(value string, animated bool) error {
+	characters := []rune(value)
+	shown := len(characters)
+	if animated {
+		shown = min(1, shown)
+	}
+	visible := string(characters[:shown])
+	if err := c.caption.SetText(visible); err != nil {
+		return err
+	}
+	if err := c.caption.SetVisible(visible != ""); err != nil {
+		return err
+	}
+	c.typing = typewriter{characters: characters, started: time.Now(), shown: shown}
+	c.display = DisplayState{Text: value, VisibleText: visible, Typing: shown < len(characters)}
+	c.wakeEffects()
+	return nil
 }
 
 // nextTextTime 在持有 mu 时读取，完成或清空后不再安排更新。

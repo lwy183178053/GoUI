@@ -1,6 +1,6 @@
-# 机器人表情与文字示例
+# 机器人表情、文字与麦克风示例
 
-这是一个独立 Go 项目。屏幕用一个 Image 播放当前 GIF，内部一个底部 Text 显示所有文字。项目通过 Gin 提供表情列表、按名称播放和文字接口，浏览器提供调试面板。
+这是一个独立 Go 项目。屏幕用一个 Image 播放当前 GIF，内部一个底部 Text 显示所有文字，右下角的麦克风按钮用于本地录音。项目通过 Gin 提供表情列表、按名称播放和文字接口，浏览器提供调试面板。
 
 ## 启动
 
@@ -16,7 +16,7 @@ go run .
 go run . -ui ./ui -listen :8080
 ```
 
-`-listen :8080` 监听所有网卡；只在本机调试时可使用 `127.0.0.1:8080`。关闭窗口、Alt+F4 或 Ctrl+C 后，HTTP 服务与显示效果等待任务一并退出。
+`-listen :8080` 监听所有网卡；只在本机调试时可使用 `127.0.0.1:8080`。关闭窗口、Alt+F4 或 Ctrl+C 后，HTTP 服务、显示效果等待任务与录音任务一并退出，并释放麦克风。
 
 ## 目录与代码边界
 
@@ -26,12 +26,20 @@ robot-face/
   main.go                     # 启动入口、HTTP 与窗口生命周期
   internal/                   # 全部是这个机器人项目自己的代码
     robot/
-      controller.go           # 绑定 Image/Text，保存实际状态和待切换请求
+      controller.go           # 绑定 Image/Text/Button，保存实际状态和待切换请求
       emotion.go              # 表情名称、中文显示名和 GIF 文件登记表
       playback.go             # 立即/延后切换、单次/循环、动作结束回正常
       effects.go              # 眨眼与打字机共用的可取消等待循环
       display.go              # 完整句子输入、逐字显示、清空与校验
+      microphone.go           # 麦克风按钮状态、后台录音与结束保存
       *_test.go               # 表情、切换时序、眨眼、文字和并发测试
+    voice/
+      record.go               # 默认麦克风录音、PCM 读取与统一的一分钟上限
+      wav.go                  # WAV 编码与最近一次录音的缓存保存
+      input_windows.go        # Windows 默认麦克风，使用系统 WinMM
+      input_linux.go          # Linux 默认麦克风，调用 ALSA arecord
+      input_other.go          # 其它平台的明确错误提示
+      *_test.go               # 录音取消、长度限制、设备错误、WAV 与缓存覆盖测试
     httpapi/
       server.go               # Gin 路由与内嵌网页
       emotion.go              # 表情列表、当前状态和按名播放接口
@@ -50,14 +58,14 @@ robot-face/
       fixture.go              # 测试专用的小型 GIF 与字体
   ui/
     config.xml                # 窗口、应用名与字体配置
-    main.xml                  # 一个 Image + 一个透明背景的底部 Text
+    main.xml                  # 表情 Image、透明底部 Text 和右下角麦克风 Button
     fonts/
     gif/                      # 原始 GIF 素材
 ```
 
-仓库根目录的 `image.go`、`page.go` 和 `internal/` 是 **GoUI 框架代码**。本目录的 `internal/robot` 和 `internal/httpapi` 是 **机器人项目业务代码**。框架不依赖 Gin，也不定义表情名称、随机眨眼间隔或大模型协议。
+仓库根目录的 `image.go`、`page.go` 和 `internal/` 是 **GoUI 框架代码**。本目录的 `internal/robot`、`internal/voice` 和 `internal/httpapi` 是 **机器人项目业务代码**。框架不依赖 Gin，也不定义表情名称、随机眨眼间隔或大模型协议。
 
-框架负责 `Image.SetSource`、`Image.Play`、`Image.Finish`、GIF 解码、文字绘制、布局、窗口、`Application.Dispatch` 与 `Application.Snapshot`。机器人项目负责选择 GIF、播放策略、动作结束回正常、随机眨眼和打字机文字效果。后续语音或设备功能可继续放在本项目的 `internal/` 下。
+框架负责 `Image.SetSource`、`Image.Play`、`Image.Finish`、GIF 解码、文字绘制、布局、窗口、`Application.Dispatch` 与 `Application.Snapshot`。机器人项目负责选择 GIF、播放策略、动作结束回正常、随机眨眼和打字机文字效果。麦克风录音同样属于本项目，放在 `internal/` 下。
 
 ## 表情接口
 
@@ -129,13 +137,13 @@ curl -X POST http://127.0.0.1:8080/api/emotion -H 'Content-Type: application/jso
 
 ## 一个 Image 按需换源
 
-`ui/main.xml` 只声明当前表情 Image，不为全部 GIF 建立重叠节点：
+`ui/main.xml` 用一个 Image 播放当前表情，不为全部 GIF 建立重叠节点。下面只列出表情与文字部分；完整布局中的麦克风 Button 放在根节点末尾，显示在右下角：
 
 ```xml
 <ui color="#000000">
   <image id="face" size="-1,-1" fit="contain" src="gif/smile_[0.5s].gif">
     <text id="caption" anchor="0,1" pivot="0,1" size="-1,120"
-      margin="40,0,40,0" position="0,-24" visible="false"
+      margin="112,0,112,0" position="0,-24" visible="false"
       font-size="28" text-color="#F2F6FA" align="center" valign="bottom" wrap="true" />
   </image>
 </ui>
@@ -144,6 +152,25 @@ curl -X POST http://127.0.0.1:8080/api/emotion -H 'Content-Type: application/jso
 项目只保存文件名登记表。启动只加载初始资源，换表情才调用 `SetSource` 读取目标；同一动作和正常眨眼调用 `Play` 重播，不重新读盘。旧素材的画布和完成回调随换源释放，不缓存全部候选 GIF。换源不会重建或清空文字节点。
 
 文字以 Image 的完整布局矩形定位，contain 留白不会缩放文字。背景完全透明，内容为空时隐藏；所有提示和回答共用 `caption`。窗口主循环中的完成回调直接操作组件，HTTP 与显示效果等待任务通过 `app.Dispatch` 提交更新。
+
+## 麦克风按钮
+
+右下角始终显示一个 64×64 的圆形麦克风按钮，距窗口右边和下边各 24 像素。图标由普通 Block 组合，不依赖额外图片或图标字体；字幕左右各留出 112 像素，避免与按钮重叠。
+
+- 点击一次：打开默认麦克风。收到第一段音频后按钮亮蓝，底部立即显示“正在听”。
+- 再点击一次：停止录音，释放设备并保存最近一次 WAV。单次录音最多一分钟，到时自动结束。
+- 设备打开和录音结束期间短暂禁用按钮，录音读取、文件保存均在后台进行，窗口动画继续播放。
+- 打开设备失败时，在同一个底部文字区域显示原因；修复设备或权限后可再次点击。
+- 关闭窗口时取消未完成的录音并释放设备，退出时不保存半途取消的片段。
+
+音频为 **16kHz、单声道、16 位小端 PCM 的 WAV**。只保留最近一次录音，路径打印在终端中：
+
+- Windows：`%LOCALAPPDATA%/GoUI/robot-face/last-recording.wav`。
+- Linux：`$XDG_CACHE_HOME/GoUI/robot-face/last-recording.wav`，未设置缓存目录时使用 `~/.cache/GoUI/robot-face/last-recording.wav`。
+
+Windows 通过系统 WinMM 录音，需要允许桌面应用使用默认麦克风。Linux 使用 `alsa-utils` 中的 `arecord`，程序需要有默认音频设备的访问权限；可先用 `arecord -l` 检查设备。两种方式都可用 `CGO_ENABLED=0` 编译。
+
+本次实现的是按钮和真实本地录音。**VoiceStudio、识别、模型回答和语音输出尚未接入**；当前录音结束后保存文件，并明确显示服务尚未配置。接入语音服务时，在这条录音入口先停止当前回复及待播音频，再开始新的识别。当前开始录音会立即停止旧文字的打字机效果，状态提示不逐字播放。
 
 ## 文字接口
 

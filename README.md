@@ -19,7 +19,7 @@ go run .
 go build -o GoUI.exe .
 ```
 
-机器人 GIF 表情示例在 `example/robot-face/` 中，同样在该目录执行 `go run .`。设备使用单个 Image 和底部一个透明 Text；浏览器打开 `http://localhost:8080/`，通过表情名称按钮选择动作、循环和打断策略。`GET /api/expressions` 获取可用名称，`POST /api/emotion` 按名称控制，`POST /api/display` 一次接收完整句子，设备自动逐字显示。动作默认完整播放一次后回正常，正常每隔 2～5 秒随机眨眼。具体接口和 Linux 部署见示例 README。
+机器人 GIF 表情示例在 `example/robot-face/` 中，同样在该目录执行 `go run .`。设备使用单个 Image 和底部一个透明 Text；浏览器打开 `http://localhost:8080/`，通过表情名称按钮选择动作、循环和打断策略。`GET /api/expressions` 获取可用名称，`POST /api/emotion` 按名称控制，`POST /api/display` 一次接收完整句子，设备自动逐字显示。动作默认完整播放一次后回正常，正常每隔 2～5 秒随机眨眼。右下角麦克风按钮可开始/结束本地录音，当前保存最近一次 WAV，语音服务待接入。具体接口和 Linux 部署见示例 README。
 
 `GoUI.exe` 运行时需要同目录下的 `ui/` 资源目录。示例通过 `goui.Open("./ui")` 加载它，因此从项目目录启动程序。
 
@@ -213,10 +213,14 @@ return face.Finish(func(*goui.Page) error {
 - `example/robot-face/`：独立机器人 GIF 表情示例，1080×720 黑底窗口，单个 Image 按需播放 23 张 GIF，提供按名播放、循环/打断策略、统一文字接口和 Web 调试面板。
 - `example/robot-face/main.go`：机器人项目启动入口、HTTP 与窗口生命周期。
 - `example/robot-face/internal/robot/`：项目自己的表情名称、切换策略与统一文字显示，不属于 GoUI 框架。
-- `example/robot-face/internal/robot/controller.go`、`emotion.go`：绑定 Image/Text、保存实际状态、登记表情名称与资源。
+- `example/robot-face/internal/robot/controller.go`、`emotion.go`：绑定 Image/Text/Button、保存实际状态、登记表情名称与资源。
 - `example/robot-face/internal/robot/playback.go`：立即或完成本轮后切换、单次回正常、循环与旧通知失效。
 - `example/robot-face/internal/robot/effects.go`、`effects_test.go`：随机眨眼与逐字显示共用的可取消等待循环、过期通知检查。
 - `example/robot-face/internal/robot/display.go`、`display_test.go`：完整句子输入、打字机进度、新句子替换与清空。
+- `example/robot-face/internal/robot/microphone.go`：右下角按钮状态、后台录音、错误提示与退出清理。
+- `example/robot-face/internal/voice/record.go`：默认麦克风录音、PCM 读取、取消与一分钟上限。
+- `example/robot-face/internal/voice/wav.go`：WAV 编码与最近一次录音的缓存保存。
+- `example/robot-face/internal/voice/input_windows.go`、`input_linux.go`、`input_other.go`：各平台录音入口；Windows 使用 WinMM，Linux 使用 arecord，均不依赖 CGO，其它平台返回明确错误。
 - `example/robot-face/internal/httpapi/`：项目自己的 Gin 接口、输入校验、Web 面板与测试。
 - `example/robot-face/internal/httpapi/web/`：无需前端工具链的调试网页；`api.js` 统一 JSON 请求，`app.js` 管理表情，`display.js` 管理文字，`preview.js` 采样实际 UI 帧。
 - `example/robot-face/internal/testui/`：仅供示例测试使用的小尺寸资源。
