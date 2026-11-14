@@ -1,4 +1,4 @@
-// Package voice 负责机器人项目的麦克风录音，不依赖 GoUI 窗口和组件。
+// Package voice 负责机器人项目的麦克风录音和语音播放，不依赖 GoUI 窗口和组件。
 package voice
 
 import (

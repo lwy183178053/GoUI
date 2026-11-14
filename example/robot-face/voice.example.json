@@ -1,0 +1,12 @@
+{
+  "speech": {
+    "url": "http://127.0.0.1:3900",
+    "voice": "demo0001"
+  },
+  "llm": {
+    "base_url": "https://your-provider.example/v1",
+    "api_key": "",
+    "model": "your-model-name",
+    "system_prompt": "你是一个友善的桌面机器人。用简洁、自然的中文回答，通常不超过三句话。回答会直接朗读，请使用普通文本，不要 Markdown、表格或思考过程。"
+  }
+}

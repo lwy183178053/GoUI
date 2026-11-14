@@ -26,7 +26,7 @@ func encodeWAV(pcm []byte) []byte {
 }
 
 // SaveRecording 只保留最近一次录音，不在项目资源目录积累音频文件。
-// 接入识别服务后，可以直接传递 Record 的返回值而不保存文件。
+// 缓存仅用于排查；识别直接使用 Record 返回的内存数据。
 func SaveRecording(data []byte) (string, error) {
 	cache, err := os.UserCacheDir()
 	if err != nil {

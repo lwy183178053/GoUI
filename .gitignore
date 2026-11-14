@@ -1,3 +1,7 @@
 /.cache/
 /goui.exe
 /goui-linux-arm64
+
+/example/robot-face/voice.local.json
+/example/robot-face/robot-face.exe
+/example/robot-face/robot-face
